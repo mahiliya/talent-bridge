@@ -1,0 +1,170 @@
+.internship-card {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    transition: all 0.3s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .internship-card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .internship-card-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+  
+  .organization-logo {
+    width: 50px;
+    height: 50px;
+    background-color: #4299e1;
+    color: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+  
+  .internship-card-title {
+    overflow: hidden;
+  }
+  
+  .internship-card-title h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0 0 5px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .internship-card-title h4 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #718096;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .internship-card-location {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #718096;
+    margin-bottom: 15px;
+  }
+  
+  .location-icon {
+    width: 16px;
+    height: 16px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'%3E%3C/path%3E%3Ccircle cx='12' cy='10' r='3'%3E%3C/circle%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+  }
+  
+  .internship-card-description {
+    font-size: 0.9rem;
+    color: #4a5568;
+    line-height: 1.5;
+    margin-bottom: 15px;
+    flex-grow: 1;
+  }
+  
+  .internship-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  
+  .internship-tag {
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    background-color: #edf2f7;
+    color: #4a5568;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  
+  .internship-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 15px;
+    border-top: 1px solid #edf2f7;
+  }
+  
+  .deadline-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .deadline-label {
+    font-size: 0.75rem;
+    color: #718096;
+  }
+  
+  .deadline-date {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #e53e3e;
+  }
+  
+  .view-details-btn {
+    background-color: transparent;
+    color: #4299e1;
+    border: 1px solid #4299e1;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .view-details-btn:hover {
+    background-color: #4299e1;
+    color: white;
+  }
+  
+  @media (max-width: 480px) {
+    .internship-card {
+      padding: 15px;
+    }
+  
+    .organization-logo {
+      width: 40px;
+      height: 40px;
+      font-size: 1.2rem;
+    }
+  
+    .internship-card-title h3 {
+      font-size: 1rem;
+    }
+  
+    .internship-card-footer {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+  
+    .view-details-btn {
+      width: 100%;
+    }
+  }
+  
+  

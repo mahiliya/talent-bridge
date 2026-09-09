@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Company" ALTER COLUMN "contactPerson" DROP NOT NULL,
+ALTER COLUMN "description" DROP NOT NULL,
+ALTER COLUMN "industry" DROP NOT NULL,
+ALTER COLUMN "location" DROP NOT NULL,
+ALTER COLUMN "phoneNumber" DROP NOT NULL;

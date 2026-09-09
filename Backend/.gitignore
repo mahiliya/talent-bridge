@@ -1,0 +1,45 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Build outputs
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# Cache and temporary files
+.cache/
+.temp/
+*.tmp
+.npm/
+.yarn/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+uploads
+push.sh
+
+runMigration.sh
+.vercel

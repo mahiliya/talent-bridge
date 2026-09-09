@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Talent Bridge">
+  <title>Talent Bridge</title>
+  <defs>
+    <linearGradient id="tbGradIcon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B5FBF" />
+      <stop offset="1" stop-color="#00A8E8" />
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="48" height="48" rx="12" fill="url(#tbGradIcon)" />
+  <g fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- bridge deck -->
+    <path d="M11 33 H29" />
+    <!-- bridge arch (the span) -->
+    <path d="M11 33 Q20 18 29 33" />
+    <!-- growth arrow rising from the span -->
+    <path d="M29 33 L39 15" />
+    <path d="M34 15.4 L39 15 L38 20.2" />
+  </g>
+  <!-- connection nodes: talent & opportunity -->
+  <circle cx="11" cy="33" r="2.8" fill="#ffffff" />
+  <circle cx="29" cy="33" r="2.8" fill="#ffffff" />
+</svg>

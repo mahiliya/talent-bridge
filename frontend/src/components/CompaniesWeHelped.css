@@ -1,0 +1,177 @@
+.companies-helped {
+    background-color: #ffffff;
+    padding: 60px 0;
+    border-top: 1px solid #e0e5ed;
+  }
+  
+  .companies-header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  
+  .section-title {
+    font-size: 2em;
+    font-weight: 700;
+    color: #232b4e;
+    margin: 0 0 15px 0;
+  }
+  
+  .companies-subtitle {
+    font-size: 1.1rem;
+    color: #737b99;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .companies-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 50px;
+  }
+  
+  .companies-coming-soon {
+    background-color: #f8fafc;
+    border: 1px dashed #c9d6f1;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .coming-soon-icon {
+    width: 80px;
+    height: 80px;
+    background-color: #e0edff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    color: #2693ff;
+  }
+  
+  .coming-soon-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #232b4e;
+    margin: 0 0 15px 0;
+  }
+  
+  .coming-soon-text {
+    color: #737b99;
+    margin-bottom: 25px;
+    line-height: 1.6;
+  }
+  
+  .companies-cta-button {
+    display: inline-block;
+    background-color: #2693ff;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.3s ease;
+  }
+  
+  .companies-cta-button:hover {
+    background-color: #1a73e8;
+    transform: translateY(-2px);
+  }
+  
+  .companies-placeholder {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 30px;
+    opacity: 0.5;
+  }
+  
+  .company-logo-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .logo-circle {
+    width: 80px;
+    height: 80px;
+    background-color: #f0f0f0;
+    border-radius: 50%;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .logo-circle::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 2s infinite;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  
+  .logo-text {
+    font-size: 0.9rem;
+    color: #a0aec0;
+  }
+  
+  /* Responsive Styles */
+  @media (max-width: 768px) {
+    .companies-helped {
+      padding: 40px 0;
+    }
+  
+    .companies-coming-soon {
+      padding: 30px 20px;
+    }
+  
+    .coming-soon-icon {
+      width: 60px;
+      height: 60px;
+    }
+  
+    .companies-placeholder {
+      gap: 20px;
+    }
+  
+    .logo-circle {
+      width: 60px;
+      height: 60px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .section-title {
+      font-size: 1.6em;
+    }
+  
+    .companies-subtitle {
+      font-size: 1rem;
+    }
+  
+    .companies-placeholder {
+      gap: 15px;
+    }
+  
+    .logo-circle {
+      width: 50px;
+      height: 50px;
+    }
+  }
+  
+  

@@ -1,0 +1,29 @@
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import userRoutes from './routes/userRoutes';
+import companyRoutes from './routes/companyRoutes';
+import authRoutes from './routes/authRoutes';
+import jobRoutes from './routes/jobRoutes';
+import applicationRoutes from './routes/applicationRoutes';
+import matchRoutes from './routes/matchRoutes';
+import { authenticate } from './middleware/auth';
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cors());
+
+// Register routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/companies', companyRoutes);
+app.use('/api/jobs', jobRoutes);
+app.use('/api/applications', authenticate, applicationRoutes); // Require authentication for all application routes
+app.use('/api/matches', authenticate, matchRoutes); // Require authentication for all match routes
+
+app.get('/', (req: Request, res: Response) => {
+  res.send('Welcome to Talent Bridge!');
+});
+
+export default app;
