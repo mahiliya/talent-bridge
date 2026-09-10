@@ -89,6 +89,179 @@ export class MatchService {
     return Math.min(100, Math.max(0, score));
   }
 
+  // ---------------------------------------------------------------------------
+  // Applicant -> Job scoring (company applicant ranking).
+  //
+  // This is a DISTINCT scorer from scoreJobForUser: it measures how well an
+  // applicant fits a specific job, using only fields that actually exist in the
+  // schema. Weights: Skills 45, Field of study 15, Education 10, Job type 10,
+  // Location/Remote 10, Salary 10. Criteria with no comparable data on the JOB
+  // side are marked "not applicable" and excluded from the denominator so an
+  // applicant is never given (or denied) false points. The final percentage is
+  // earned / (sum of applicable max) * 100.
+  // ---------------------------------------------------------------------------
+  static scoreApplicantForJob(
+    user: {
+      skills?: string[];
+      fieldOfStudy?: string | null;
+      isStudent?: boolean;
+      isGraduate?: boolean;
+      preferredJobTypes?: string[];
+      preferredLocations?: string[];
+      minSalary?: number | null;
+      remotePreference?: string | null;
+    },
+    job: {
+      requirements?: string[];
+      title?: string | null;
+      description?: string | null;
+      category?: string | null;
+      jobType?: string | null;
+      isInternship?: boolean;
+      targetAudience?: string[];
+      location?: string | null;
+      workMode?: string | null;
+      salary?: string | null;
+    }
+  ): {
+    score: number;
+    breakdown: Array<{ key: string; label: string; earned: number; max: number; applicable: boolean; detail: string }>;
+  } {
+    const lc = (value: string | null | undefined) => String(value ?? '').toLowerCase().trim();
+    const parseSalary = (value: string | null | undefined) => {
+      const match = String(value ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/);
+      return match ? parseFloat(match[0]) : null;
+    };
+
+    // --- Skills (45): ratio of required skills matched. Exact = 1.0, partial
+    // (substring either direction, e.g. "node" vs "node.js") = 0.5. ---
+    const reqSkills = (job.requirements ?? []).map(lc).filter(Boolean);
+    const userSkills = (user.skills ?? []).map(lc).filter(Boolean);
+    let matchedCredit = 0;
+    const exact: string[] = [];
+    const partial: string[] = [];
+    const missing: string[] = [];
+    for (const req of reqSkills) {
+      let best = 0;
+      for (const skill of userSkills) {
+        if (skill === req) { best = 1; break; }
+        if (skill.includes(req) || req.includes(skill)) best = Math.max(best, 0.5);
+      }
+      matchedCredit += best;
+      if (best === 1) exact.push(req);
+      else if (best >= 0.5) partial.push(req);
+      else missing.push(req);
+    }
+    const skillsApplicable = reqSkills.length > 0;
+    const skillsEarned = skillsApplicable ? Math.round((matchedCredit / reqSkills.length) * 45) : 0;
+    const skillsDetail = skillsApplicable
+      ? `${exact.length} exact + ${partial.length} partial of ${reqSkills.length} required skills` +
+        (missing.length ? ` (missing: ${missing.join(', ')})` : '')
+      : 'Job lists no required skills';
+
+    // --- Field of study (15): applicant's field-of-study terms found in the
+    // job's category/title/description/requirements text. ---
+    const fos = lc(user.fieldOfStudy);
+    const jobText = normalizeText(
+      [job.category, job.title, job.description, ...(job.requirements ?? [])].join(' ')
+    );
+    let fosEarned = 0;
+    let fosDetail: string;
+    if (!fos) {
+      fosDetail = 'Applicant has no field of study on file';
+    } else {
+      const words = fos.split(/\s+/).filter((w) => w.length > 2);
+      const hits = words.filter((w) => jobText.includes(w));
+      fosEarned = words.length ? Math.round((hits.length / words.length) * 15) : 0;
+      fosDetail = `${hits.length}/${words.length || 0} field-of-study term(s) found in the job`;
+    }
+
+    // --- Education (10): only meaningful when the job targets students XOR
+    // graduates. targetAudience of BOTH / empty => not applicable. ---
+    const ta = job.targetAudience ?? [];
+    const wantsStudents = ta.includes('STUDENTS');
+    const wantsGraduates = ta.includes('GRADUATES');
+    const eduApplicable = !ta.includes('BOTH') && wantsStudents !== wantsGraduates;
+    let eduEarned = 0;
+    let eduDetail: string;
+    if (!eduApplicable) {
+      eduDetail = 'Job specifies no student/graduate requirement';
+    } else if (wantsStudents) {
+      eduEarned = user.isStudent ? 10 : 0;
+      eduDetail = user.isStudent ? 'Applicant is a student (job targets students)' : 'Job targets students; applicant is not marked as a student';
+    } else {
+      eduEarned = user.isGraduate ? 10 : 0;
+      eduDetail = user.isGraduate ? 'Applicant is a graduate (job targets graduates)' : 'Job targets graduates; applicant is not marked as a graduate';
+    }
+
+    // --- Job type / internship (10) ---
+    let jobTypeEarned = 0;
+    let jobTypeDetail: string;
+    if (job.jobType && (user.preferredJobTypes ?? []).includes(job.jobType)) {
+      jobTypeEarned = 10;
+      jobTypeDetail = `Applicant prefers ${job.jobType} roles`;
+    } else if (job.isInternship && user.isStudent) {
+      jobTypeEarned = 5;
+      jobTypeDetail = 'Internship and applicant is a student';
+    } else {
+      jobTypeDetail = 'No job-type preference match';
+    }
+
+    // --- Location / Remote (10): best of location match or work-mode compat. ---
+    const jobLoc = lc(job.location);
+    const locMatch = (user.preferredLocations ?? []).some((l) => {
+      const pl = lc(l);
+      return pl && jobLoc && (jobLoc.includes(pl) || pl.includes(jobLoc));
+    }) ? 1 : 0;
+    let remMatch = 0;
+    const wm = job.workMode;
+    const rp = user.remotePreference;
+    if (wm && rp) {
+      if (rp === 'FLEXIBLE' || rp === wm) remMatch = 1;
+      else if (wm === 'HYBRID' || rp === 'HYBRID') remMatch = 0.5;
+    }
+    const locScore = Math.max(locMatch, remMatch);
+    const locEarned = Math.round(locScore * 10);
+    const locDetail = locMatch
+      ? 'Preferred location matches the job location'
+      : remMatch === 1
+        ? `Work-mode compatible (${wm} / prefers ${rp})`
+        : remMatch === 0.5
+          ? `Partial work-mode compatibility (${wm} / prefers ${rp})`
+          : 'No location or work-mode match';
+
+    // --- Salary (10): only when BOTH sides have numeric data. ---
+    const jobSalary = parseSalary(job.salary);
+    const minSalary = typeof user.minSalary === 'number' ? user.minSalary : null;
+    const salaryApplicable = jobSalary !== null && minSalary !== null;
+    let salaryEarned = 0;
+    let salaryDetail: string;
+    if (!salaryApplicable) {
+      salaryDetail = 'Salary not comparable (missing numeric data on one side)';
+    } else {
+      salaryEarned = (jobSalary as number) >= (minSalary as number) ? 10 : 0;
+      salaryDetail = salaryEarned
+        ? `Job salary (${jobSalary}) meets applicant minimum (${minSalary})`
+        : `Job salary (${jobSalary}) is below applicant minimum (${minSalary})`;
+    }
+
+    const breakdown = [
+      { key: 'skills', label: 'Skills', earned: skillsEarned, max: 45, applicable: skillsApplicable, detail: skillsDetail },
+      { key: 'fieldOfStudy', label: 'Field of study', earned: fosEarned, max: 15, applicable: true, detail: fosDetail },
+      { key: 'education', label: 'Education', earned: eduEarned, max: 10, applicable: eduApplicable, detail: eduDetail },
+      { key: 'jobType', label: 'Job type', earned: jobTypeEarned, max: 10, applicable: true, detail: jobTypeDetail },
+      { key: 'location', label: 'Location / Remote', earned: locEarned, max: 10, applicable: true, detail: locDetail },
+      { key: 'salary', label: 'Salary', earned: salaryEarned, max: 10, applicable: salaryApplicable, detail: salaryDetail },
+    ];
+
+    const applicable = breakdown.filter((item) => item.applicable);
+    const denominator = applicable.reduce((sum, item) => sum + item.max, 0);
+    const numerator = applicable.reduce((sum, item) => sum + item.earned, 0);
+    const score = denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
+
+    return { score, breakdown };
+  }
+
 
   // Create a new match
   async createMatch(data: CreateMatchDto): Promise<Match> {
@@ -403,6 +576,7 @@ export class MatchService {
       const allOpenJobs = await prisma.job.findMany({
         where: {
           isActive: true,
+          isDraft: false,
           applications: {
             none: {
               applicantId: userId

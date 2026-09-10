@@ -1,13 +1,39 @@
 import { PrismaClient, Application, ApplicationStatus } from '@prisma/client';
-import { 
+import {
   ResourceNotFoundError,
   ForbiddenError,
   DuplicateResourceError,
-  DatabaseError 
+  DatabaseError
 } from '../utils/errors';
 import { CreateApplicationDto } from '../types/application.types';
+import { MatchService } from './matchService';
 
 const prisma = new PrismaClient();
+
+// Applicant fields a company may see on an application, plus the fields the
+// applicant scorer needs. Never includes the password.
+const APPLICANT_DETAIL_SELECT = {
+  id: true,
+  fullName: true,
+  email: true,
+  skills: true,
+  university: true,
+  fieldOfStudy: true,
+  degree: true,
+  currentYear: true,
+  expectedGraduation: true,
+  isStudent: true,
+  isGraduate: true,
+  resume: true,
+  portfolioWebsite: true,
+  githubProfile: true,
+  linkedInProfile: true,
+  preferredJobTypes: true,
+  preferredLocations: true,
+  minSalary: true,
+  remotePreference: true,
+  createdAt: true,
+} as const;
 
 export class ApplicationService {
   static async applyForJob(applicantId: string, jobId: string, applicationData: {
@@ -155,14 +181,7 @@ export class ApplicationService {
             }
           },
           applicant: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-              skills: true,
-              university: true,
-              resume: true,
-            }
+            select: APPLICANT_DETAIL_SELECT,
           }
         }
       });
@@ -171,12 +190,19 @@ export class ApplicationService {
         throw new ResourceNotFoundError(`Application with ID ${applicationId} not found.`);
       }
 
-      // Check authorization - only the applicant or the company that posted the job can see it
+      // Authorization: only the applicant, or the company that owns the job.
+      // entityId/entityType are derived from the auth token by the controller.
       if (
-        (entityType === 'user' && application.applicantId !== entityId) || 
+        (entityType === 'user' && application.applicantId !== entityId) ||
         (entityType === 'company' && application.job.company.id !== entityId)
       ) {
         throw new ForbiddenError('You do not have permission to view this application.');
+      }
+
+      // For the company, attach the applicant->job match score and breakdown.
+      if (entityType === 'company') {
+        const { score, breakdown } = MatchService.scoreApplicantForJob(application.applicant, application.job);
+        return { ...application, matchScore: score, matchBreakdown: breakdown };
       }
 
       return application;
@@ -185,6 +211,61 @@ export class ApplicationService {
         throw error;
       }
       throw new DatabaseError('An error occurred while retrieving the application details. Please try again later.');
+    }
+  }
+
+  // Applicants for one job the company owns, ranked by applicant->job match.
+  static async getRankedApplicantsForJob(companyId: string, jobId: string) {
+    try {
+      const job = await prisma.job.findUnique({ where: { id: jobId } });
+      if (!job) {
+        throw new ResourceNotFoundError(`Job with ID ${jobId} not found.`);
+      }
+      if (job.companyId !== companyId) {
+        throw new ForbiddenError('You do not have permission to view applicants for this job.');
+      }
+
+      const applications = await prisma.application.findMany({
+        where: { jobId },
+        include: { applicant: { select: APPLICANT_DETAIL_SELECT } },
+      });
+
+      const applicants = applications
+        .map((application) => {
+          const { score } = MatchService.scoreApplicantForJob(application.applicant, job);
+          return {
+            applicationId: application.id,
+            status: application.status,
+            appliedAt: application.appliedAt,
+            matchScore: score,
+            applicant: {
+              id: application.applicant.id,
+              fullName: application.applicant.fullName,
+              university: application.applicant.university,
+              fieldOfStudy: application.applicant.fieldOfStudy,
+              skills: application.applicant.skills,
+            },
+          };
+        })
+        .sort((a, b) => b.matchScore - a.matchScore);
+
+      return {
+        job: {
+          id: job.id,
+          title: job.title,
+          jobType: job.jobType,
+          isInternship: job.isInternship,
+          location: job.location,
+          workMode: job.workMode,
+          deadline: job.deadline,
+        },
+        applicants,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new DatabaseError('An error occurred while retrieving applicants. Please try again later.');
     }
   }
 

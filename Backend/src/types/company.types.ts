@@ -1,5 +1,21 @@
 import {  CompanySize } from '@prisma/client';
 
+// Payload for the public company self-registration flow. `size` is optional
+// here because it is captured later during Company Profile completion; the
+// service applies a sensible default at registration time.
+export interface RegisterCompanyDto {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  industry: string;
+  location: string;
+  phoneNumber?: string;
+  companyType?: string;
+  website?: string;
+  size?: CompanySize;
+}
+
 export interface CreateCompanyDto {
   name: string;
   email: string;

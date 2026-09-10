@@ -8,8 +8,8 @@ const applicationController = new ApplicationController();
 // Apply for a job
 router.post('/jobs/:jobId/apply', authenticateUser, applicationController.applyForJob as any);
 
-// Get job applications
-router.get('/jobs/:jobId', applicationController.getJobApplications);
+// Get ranked applicants for one of the company's own jobs (Company only)
+router.get('/jobs/:jobId', authenticateCompany, applicationController.getJobApplications);
 
 // Get company applications
 router.get('/companies/:companyId', applicationController.getCompanyApplications);

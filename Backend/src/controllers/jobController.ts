@@ -4,9 +4,10 @@ import { ApplicationService } from '../services/applicationService';
 import {
   ResourceNotFoundError,
   ForbiddenError,
+  ValidationError,
   DatabaseError
 } from '../utils/errors';
-import { CreateJobDto, UpdateJobDto, JobType, ExperienceLevel, TargetAudience } from '../types/job.types';
+import { CompanyJobInput, JobType, ExperienceLevel, TargetAudience } from '../types/job.types';
 
 export class JobController {
   private jobService: JobService;
@@ -15,74 +16,114 @@ export class JobController {
     this.jobService = new JobService();
   }
 
-  // Create a new job
+  // Translate service errors into HTTP responses (shared by company flows).
+  private handleJobError(error: unknown, res: Response) {
+    if (error instanceof ResourceNotFoundError) {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error instanceof ForbiddenError) {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error instanceof ValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: 'An unexpected error occurred' });
+  }
+
+  // Create a new opportunity (Company-only). companyId comes from the
+  // authenticated company, never from the request body.
   createJob = async (req: Request, res: Response) => {
     try {
-      const jobData = req.body as CreateJobDto;
-      const job = await this.jobService.createJob(jobData);
-      res.status(201).json(job);
+      const companyId = req.company?.id;
+      if (!companyId) {
+        return res.status(403).json({ error: 'Company authentication required.' });
+      }
+      const job = await JobService.createCompanyJob(companyId, req.body as CompanyJobInput);
+      return res.status(201).json(job);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return this.handleJobError(error, res);
     }
   };
 
-  // Get job by ID
+  // List the authenticated company's own opportunities (drafts included).
+  getMyJobs = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.company?.id;
+      if (!companyId) {
+        return res.status(403).json({ error: 'Company authentication required.' });
+      }
+      const jobs = await JobService.getCompanyJobs(companyId);
+      return res.json(jobs);
+    } catch (error) {
+      return this.handleJobError(error, res);
+    }
+  };
+
+  // Publish a draft opportunity (Company-only, ownership enforced).
+  publishJob = async (req: Request, res: Response) => {
+    try {
+      const companyId = req.company?.id;
+      if (!companyId) {
+        return res.status(403).json({ error: 'Company authentication required.' });
+      }
+      const job = await JobService.publishCompanyJob(String(req.params.id), companyId);
+      return res.json(job);
+    } catch (error) {
+      return this.handleJobError(error, res);
+    }
+  };
+
+  // Get job by ID. Published + active jobs are public. Drafts and inactive
+  // jobs are only visible to the company that owns them; everyone else gets a
+  // 404 so their existence is not leaked.
   getJobById = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-     const job = await JobService.getJobById(String(id));
-      res.json(job);
+      const job = await JobService.getJobById(String(id));
+
+      const isPubliclyVisible = !job.isDraft && job.isActive;
+      if (!isPubliclyVisible) {
+        const isOwner = Boolean(req.company?.id) && req.company?.id === job.companyId;
+        if (!isOwner) {
+          return res.status(404).json({ error: `Job with ID ${id} not found.` });
+        }
+      }
+
+      return res.json(job);
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        res.status(404).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
+        return res.status(404).json({ error: error.message });
       }
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
-  // Update job
+  // Update/edit an opportunity (Company-only). Ownership is enforced in the
+  // service against the authenticated company id.
   updateJob = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-      const { companyId } = req.body;
+      const companyId = req.company?.id;
       if (!companyId) {
-        res.status(403).json({ error: 'Company ID is required' });
-        return;
+        return res.status(403).json({ error: 'Company authentication required.' });
       }
-      const jobData = req.body as UpdateJobDto;
-     const job = await JobService.updateJob(String(id), companyId.toString(), jobData);
-      res.json(job);
+      const job = await JobService.updateCompanyJob(String(req.params.id), companyId, req.body as CompanyJobInput);
+      return res.json(job);
     } catch (error) {
-      if (error instanceof ResourceNotFoundError) {
-        res.status(404).json({ error: error.message });
-      } else if (error instanceof ForbiddenError) {
-        res.status(403).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
-      }
+      return this.handleJobError(error, res);
     }
   };
 
-  // Delete job
+  // Delete an opportunity (Company-only, ownership enforced).
   deleteJob = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-      const { companyId } = req.body;
+      const companyId = req.company?.id;
       if (!companyId) {
-        res.status(403).json({ error: 'Company ID is required' });
-        return;
+        return res.status(403).json({ error: 'Company authentication required.' });
       }
-      const result = await JobService.deleteJob(String(id), companyId.toString());
-      res.json(result);
+      const result = await JobService.deleteJob(String(req.params.id), companyId);
+      return res.json(result);
     } catch (error) {
-      if (error instanceof ResourceNotFoundError) {
-        res.status(404).json({ error: error.message });
-      } else if (error instanceof ForbiddenError) {
-        res.status(403).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
-      }
+      return this.handleJobError(error, res);
     }
   };
 
@@ -195,14 +236,17 @@ export class JobController {
     }
   };
 
-  // Toggle job active status
+  // Toggle opportunity active status (Company-only, ownership enforced).
   toggleJobActiveStatus = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-      const job = await this.jobService.toggleJobActiveStatus(String(id));
-      res.json(job);
+      const companyId = req.company?.id;
+      if (!companyId) {
+        return res.status(403).json({ error: 'Company authentication required.' });
+      }
+      const job = await JobService.toggleCompanyJobActive(String(req.params.id), companyId);
+      return res.json(job);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return this.handleJobError(error, res);
     }
   };
 

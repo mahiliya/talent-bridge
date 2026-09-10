@@ -1,0 +1,134 @@
+/* Company applicant list + application details. Uses the shared dashboard
+   design tokens (cream/teal/terracotta, square cards). */
+
+/* ---- Applicant list (ranked) ---- */
+.applicant-list {
+  border-top: 1px solid #d7d1c4;
+}
+
+.applicant-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid #d7d1c4;
+  cursor: pointer;
+}
+
+.applicant-row:hover {
+  background: #fbf9f3;
+}
+
+.applicant-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.applicant-main h3 {
+  font-size: 18px;
+  font-weight: normal;
+  margin: 0 0 4px;
+}
+
+.applicant-main p {
+  font: 13px Arial, sans-serif;
+  color: #657477;
+  margin: 0 0 8px;
+}
+
+/* Match badge */
+.match-badge {
+  flex: 0 0 auto;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  border: 3px solid #d98a5d;
+}
+
+.match-badge strong { font: 700 18px Arial, sans-serif; color: #173f45; line-height: 1; }
+.match-badge span { font: 10px Arial, sans-serif; color: #657477; }
+.match-badge.high { border-color: #2f6b3f; }
+.match-badge.mid { border-color: #d98a5d; }
+.match-badge.low { border-color: #cdc4b2; }
+.match-badge.inline { width: auto; height: auto; border: 0; }
+.match-badge.inline strong { font-size: 28px; color: #b96e45; }
+
+/* Skill chips */
+.skill-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.skill-chip {
+  font: 12px Arial, sans-serif;
+  color: #173f45;
+  background: #e7eee9;
+  border: 1px solid #cdd9d2;
+  padding: 3px 9px;
+}
+
+/* ---- Decision bar ---- */
+.decision-bar { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 26px; }
+.decision-btn {
+  border: 1px solid #cfc8ba;
+  background: #fffdf8;
+  color: #17262b;
+  padding: 12px 22px;
+  font: 600 14px Arial, sans-serif;
+  cursor: pointer;
+}
+.decision-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.decision-shortlisted { border-color: #5a3e8a; color: #5a3e8a; }
+.decision-accepted { border-color: #2f6b3f; color: #2f6b3f; }
+.decision-rejected { border-color: #9a3f32; color: #9a3f32; }
+.decision-btn.current { color: #fff; }
+.decision-shortlisted.current { background: #5a3e8a; }
+.decision-accepted.current { background: #2f6b3f; }
+.decision-rejected.current { background: #9a3f32; }
+
+/* ---- Details layout ---- */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 6px 0 10px;
+}
+
+.breakdown-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 16px; }
+.breakdown-head { display: flex; justify-content: space-between; font: 600 13px Arial, sans-serif; color: #17262b; }
+.breakdown-track { height: 7px; background: #e4ded2; margin: 7px 0; }
+.breakdown-track div { height: 100%; background: #d98a5d; }
+.breakdown-detail { font: 12px/1.5 Arial, sans-serif; color: #657477; margin: 4px 0 0; }
+.breakdown-list li.na { opacity: 0.7; }
+.breakdown-list li.na .breakdown-head { color: #657477; }
+.breakdown-note { font: 12px/1.5 Arial, sans-serif; color: #8a8172; margin: 16px 0 0; }
+
+.profile-facts { display: grid; gap: 10px; margin: 8px 0 0; }
+.profile-facts > div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #ece7dc; padding-bottom: 8px; }
+.profile-facts dt { font: 600 13px Arial, sans-serif; color: #657477; margin: 0; }
+.profile-facts dd { font: 13px Arial, sans-serif; color: #17262b; margin: 0; text-align: right; word-break: break-word; }
+
+.doc-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.doc-link {
+  font: 600 13px Arial, sans-serif;
+  color: #b96e45;
+  text-decoration: none;
+  border: 1px solid #e3c9b6;
+  padding: 8px 14px;
+  background: #fdf4ec;
+}
+.doc-link:hover { background: #f8e8db; }
+
+.cover-letter {
+  font: 15px/1.7 Arial, sans-serif;
+  color: #384a4d;
+  white-space: pre-wrap;
+  background: #fffdf8;
+  border: 1px solid #ddd5c8;
+  padding: 20px;
+  max-width: 820px;
+}
+
+@media (max-width: 760px) {
+  .detail-grid { grid-template-columns: 1fr; }
+  .applicant-row { flex-wrap: wrap; }
+}

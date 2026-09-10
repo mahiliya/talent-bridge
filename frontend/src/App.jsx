@@ -10,6 +10,11 @@ import InternshipsPage from './pages/InternshipsPage'; // Import the Internships
 import InternshipDetailsPage from './pages/InternshipDetailsPage'; // Import the InternshipDetailsPage
 import AboutUs from './components/AboutUs';
 import UserDashboard from './pages/UserDashboard';
+import CompanyDashboard from './pages/CompanyDashboard';
+import PostOpportunity from './pages/PostOpportunity';
+import MyOpportunities from './pages/MyOpportunities';
+import JobApplicants from './pages/JobApplicants';
+import ApplicationDetails from './pages/ApplicationDetails';
 
 function App() {
   return (
@@ -29,6 +34,11 @@ function App() {
           <Route path="/internships/:id" element={<InternshipDetailsPage />} /> { /* New Route */}
           <Route path="/about" element={<AboutUs />} />
           <Route path="/dashboard" element={<UserDashboard />} />
+          <Route path="/company/dashboard" element={<CompanyDashboard />} />
+          <Route path="/company/post-opportunity" element={<PostOpportunity />} />
+          <Route path="/company/opportunities" element={<MyOpportunities />} />
+          <Route path="/company/jobs/:jobId/applicants" element={<JobApplicants />} />
+          <Route path="/company/applications/:applicationId" element={<ApplicationDetails />} />
         </Routes>
         <Footer />
         <main>

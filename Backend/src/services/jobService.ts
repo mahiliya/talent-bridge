@@ -1,12 +1,24 @@
-import { PrismaClient, Job, JobType, ExperienceLevel, TargetAudience } from '@prisma/client';
-import { CreateJobDto, UpdateJobDto } from '../types/job.types';
-import { 
+import { PrismaClient, Job, JobType, ExperienceLevel, TargetAudience, RemotePreference } from '@prisma/client';
+import { CreateJobDto, UpdateJobDto, CompanyJobInput } from '../types/job.types';
+import {
   ResourceNotFoundError,
   ForbiddenError,
+  ValidationError,
   DatabaseError
 } from '../utils/errors';
 
 const prisma = new PrismaClient();
+
+// Normalize a comma-separated string or array into a clean string[].
+const toStringArray = (value: string[] | string | undefined | null): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+};
 
 export class JobService {
   // Create a new job
@@ -193,6 +205,9 @@ export class JobService {
       // Build filter conditions
       const where: any = {
         isActive: true, // Default to active jobs only
+        // Drafts are never exposed through public listings, regardless of any
+        // isActive override supplied by the caller.
+        isDraft: false,
       };
 
       if (filters) {
@@ -357,11 +372,12 @@ export class JobService {
       const jobs = await prisma.job.findMany({
         where: {
           isActive: true,
+          isDraft: false,
           requirements: {
             hasSome: user.skills,
           },
-          
-          
+
+
         },
         include: {
           company: {
@@ -432,4 +448,249 @@ export class JobService {
       throw new DatabaseError('An error occurred while getting candidate recommendations. Please try again later.');
     }
   }
-} 
+
+  // ---------------------------------------------------------------------------
+  // Company opportunity management (Company-only flows)
+  // ---------------------------------------------------------------------------
+
+  // Validate and map the Post Opportunity payload into Prisma job data.
+  // `publishing` = true means the caller intends to publish (stricter checks).
+  private static buildCompanyJobData(input: CompanyJobInput, publishing: boolean) {
+    const title = String(input.title ?? '').trim();
+    const description = String(input.description ?? '').trim();
+
+    if (!title) {
+      throw new ValidationError('Opportunity title is required.');
+    }
+    if (!description) {
+      throw new ValidationError('Opportunity description is required.');
+    }
+
+    // Deadline is a required, non-null column and must be a valid future date.
+    if (!input.deadline) {
+      throw new ValidationError('Application deadline is required.');
+    }
+    const deadline = new Date(input.deadline);
+    if (Number.isNaN(deadline.getTime())) {
+      throw new ValidationError('Application deadline is not a valid date.');
+    }
+    if (deadline.getTime() <= Date.now()) {
+      throw new ValidationError('Application deadline must be in the future.');
+    }
+
+    // Work mode is optional, but if supplied it must be a valid RemotePreference.
+    let workMode: RemotePreference | undefined;
+    if (input.workMode !== undefined && input.workMode !== null && String(input.workMode) !== '') {
+      if (!Object.values(RemotePreference).includes(input.workMode as RemotePreference)) {
+        throw new ValidationError(
+          `Unsupported work mode "${input.workMode}". Use ON_SITE, REMOTE, HYBRID, or FLEXIBLE.`
+        );
+      }
+      workMode = input.workMode as RemotePreference;
+    }
+
+    // Experience level defaults to ENTRY; validate when provided.
+    let experienceLevel: ExperienceLevel = ExperienceLevel.ENTRY;
+    if (input.experienceLevel !== undefined && String(input.experienceLevel) !== '') {
+      if (!Object.values(ExperienceLevel).includes(input.experienceLevel as ExperienceLevel)) {
+        throw new ValidationError(
+          `Unsupported experience level "${input.experienceLevel}". Use ENTRY, JUNIOR, MID, SENIOR, or LEAD.`
+        );
+      }
+      experienceLevel = input.experienceLevel as ExperienceLevel;
+    }
+
+    // Job type: Internship toggle maps to INTERNSHIP; otherwise honor a valid
+    // provided jobType, defaulting to FULL_TIME.
+    const isInternship = Boolean(input.isInternship);
+    let jobType: JobType = isInternship ? JobType.INTERNSHIP : JobType.FULL_TIME;
+    if (!isInternship && input.jobType !== undefined && String(input.jobType) !== '') {
+      if (!Object.values(JobType).includes(input.jobType as JobType)) {
+        throw new ValidationError(
+          `Unsupported job type "${input.jobType}". Use FULL_TIME, PART_TIME, INTERNSHIP, CONTRACT, or FREELANCE.`
+        );
+      }
+      jobType = input.jobType as JobType;
+    }
+
+    // Required skills feed the recommendation engine, so published roles must
+    // carry at least one. Drafts may be saved without them.
+    const requirements = toStringArray(input.requiredSkills ?? input.requirements);
+    if (publishing && requirements.length === 0) {
+      throw new ValidationError('At least one required skill is needed to publish an opportunity.');
+    }
+
+    const responsibilities = toStringArray(input.responsibilities);
+
+    // Positions, when provided, must be a positive integer.
+    let positions: number | undefined;
+    if (input.positions !== undefined && input.positions !== null && String(input.positions) !== '') {
+      const parsed = Number(input.positions);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        throw new ValidationError('Number of positions must be a positive whole number.');
+      }
+      positions = parsed;
+    }
+
+    const targetAudience: TargetAudience[] = Array.isArray(input.targetAudience) && input.targetAudience.length > 0
+      ? input.targetAudience
+      : [TargetAudience.BOTH];
+
+    return {
+      title,
+      description,
+      requirements,
+      responsibilities,
+      location: String(input.location ?? '').trim(),
+      salary: input.salary ? String(input.salary).trim() : null,
+      jobType,
+      experienceLevel,
+      isInternship,
+      internshipDuration: input.internshipDuration ? String(input.internshipDuration).trim() : null,
+      targetAudience,
+      category: input.category ? String(input.category).trim() : null,
+      workMode: workMode ?? null,
+      positions: positions ?? null,
+      deadline,
+    };
+  }
+
+  // Create an opportunity owned by the authenticated company.
+  // Draft => hidden (isActive:false, isDraft:true). Publish => live.
+  static async createCompanyJob(companyId: string, input: CompanyJobInput) {
+    try {
+      const isDraft = Boolean(input.isDraft);
+      const data = this.buildCompanyJobData(input, !isDraft);
+
+      return await prisma.job.create({
+        data: {
+          ...data,
+          companyId,
+          isDraft,
+          isActive: !isDraft,
+        },
+        include: { company: { select: { id: true, name: true } } },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new DatabaseError('An error occurred while creating the opportunity. Please try again later.');
+    }
+  }
+
+  // Update/edit an opportunity the company owns (draft or published).
+  static async updateCompanyJob(jobId: string, companyId: string, input: CompanyJobInput) {
+    try {
+      const existing = await prisma.job.findUnique({ where: { id: jobId } });
+      if (!existing) {
+        throw new ResourceNotFoundError(`Job with ID ${jobId} not found.`);
+      }
+      if (existing.companyId !== companyId) {
+        throw new ForbiddenError('You do not have permission to modify this opportunity.');
+      }
+
+      // If the client sends an explicit isDraft, respect it; otherwise keep the
+      // current draft state. Publishing (isDraft:false) enforces stricter rules.
+      const willBeDraft = input.isDraft !== undefined ? Boolean(input.isDraft) : existing.isDraft;
+      const data = this.buildCompanyJobData(input, !willBeDraft);
+
+      return await prisma.job.update({
+        where: { id: jobId },
+        data: {
+          ...data,
+          isDraft: willBeDraft,
+          // A draft is never active; publishing makes it active.
+          isActive: willBeDraft ? false : true,
+        },
+        include: { company: { select: { id: true, name: true } } },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new DatabaseError('An error occurred while updating the opportunity. Please try again later.');
+    }
+  }
+
+  // Publish a draft (or re-publish) an opportunity the company owns.
+  static async publishCompanyJob(jobId: string, companyId: string) {
+    try {
+      const existing = await prisma.job.findUnique({ where: { id: jobId } });
+      if (!existing) {
+        throw new ResourceNotFoundError(`Job with ID ${jobId} not found.`);
+      }
+      if (existing.companyId !== companyId) {
+        throw new ForbiddenError('You do not have permission to publish this opportunity.');
+      }
+      if ((existing.requirements?.length ?? 0) === 0) {
+        throw new ValidationError('Add at least one required skill before publishing this opportunity.');
+      }
+      if (existing.deadline.getTime() <= Date.now()) {
+        throw new ValidationError('Update the deadline to a future date before publishing.');
+      }
+
+      return await prisma.job.update({
+        where: { id: jobId },
+        data: { isDraft: false, isActive: true },
+        include: { company: { select: { id: true, name: true } } },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new DatabaseError('An error occurred while publishing the opportunity. Please try again later.');
+    }
+  }
+
+  // Toggle active status for a published opportunity the company owns.
+  static async toggleCompanyJobActive(jobId: string, companyId: string) {
+    try {
+      const existing = await prisma.job.findUnique({ where: { id: jobId } });
+      if (!existing) {
+        throw new ResourceNotFoundError(`Job with ID ${jobId} not found.`);
+      }
+      if (existing.companyId !== companyId) {
+        throw new ForbiddenError('You do not have permission to modify this opportunity.');
+      }
+      if (existing.isDraft) {
+        throw new ValidationError('Publish this opportunity before changing its active status.');
+      }
+
+      return await prisma.job.update({
+        where: { id: jobId },
+        data: { isActive: !existing.isActive },
+        include: { company: { select: { id: true, name: true } } },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new DatabaseError('An error occurred while updating the opportunity. Please try again later.');
+    }
+  }
+
+  // List every opportunity a company owns, including drafts, with a live
+  // application count for the dashboard/"My Opportunities" view.
+  static async getCompanyJobs(companyId: string) {
+    try {
+      const jobs = await prisma.job.findMany({
+        where: { companyId },
+        include: {
+          _count: { select: { applications: true } },
+        },
+        orderBy: { postedAt: 'desc' },
+      });
+
+      return jobs.map((job) => {
+        const { _count, ...rest } = job;
+        return { ...rest, applicationCount: _count.applications };
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new DatabaseError('An error occurred while retrieving your opportunities. Please try again later.');
+    }
+  }
+}

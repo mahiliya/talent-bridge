@@ -1,0 +1,71 @@
+/* Company Dashboard extras. Base layout/design tokens are inherited from
+   UserDashboard.css so the two dashboards stay visually consistent. */
+
+/* Sidebar nav uses <button>s (section switching) but must look identical to the
+   existing anchor-based sidebar links in UserDashboard.css. */
+.dashboard-sidebar nav .company-nav-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  color: #cfe0da;
+  padding: 10px 8px;
+  font: 14px Arial, sans-serif;
+  cursor: pointer;
+}
+
+.dashboard-sidebar nav .company-nav-link.active,
+.dashboard-sidebar nav .company-nav-link:hover {
+  color: #fff;
+  border-left-color: #d98a5d;
+  background: #24535a;
+}
+
+/* Stat cards row */
+.company-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 30px 0;
+}
+
+.company-stat-card {
+  padding: 24px 27px;
+  background: #fffdf8;
+  border: 1px solid #ddd5c8;
+  display: grid;
+  gap: 6px;
+}
+
+.company-stat-card strong {
+  font: 700 40px Arial, sans-serif;
+  color: #173f45;
+  line-height: 1;
+}
+
+.company-stat-card span {
+  font: 14px/1.4 Arial, sans-serif;
+  color: #536467;
+}
+
+/* Count shown beside a section heading (e.g. Active opportunities) */
+.section-count {
+  font: 700 22px Arial, sans-serif;
+  color: #b96e45;
+}
+
+/* Application status badges (reuses the .status border box from the base CSS) */
+.status-pending { color: #8a6d3b; background: #f7efdd; }
+.status-reviewed { color: #245a63; background: #dceaed; }
+.status-shortlisted { color: #5a3e8a; background: #e7dcf2; }
+.status-interview { color: #b96e45; background: #f6e6da; }
+.status-accepted { color: #2f6b3f; background: #dcecdf; }
+.status-rejected { color: #9a3f32; background: #f8dfd5; }
+
+@media (max-width: 760px) {
+  .company-stat-cards {
+    grid-template-columns: 1fr;
+  }
+}

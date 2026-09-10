@@ -117,11 +117,15 @@ function LoginModal({ isOpen, onClose }) {
       localStorage.setItem("user", JSON.stringify(data.user))
     }
 
+    if (data.company) {
+      localStorage.setItem("company", JSON.stringify(data.company))
+    }
+
     // Close the login modal
     onClose()
 
-    // Redirect to the user dashboard
-    window.location.href = "/dashboard"
+    // Company accounts go to the Company Dashboard; users keep the existing flow.
+    window.location.href = accountType === "company" ? "/company/dashboard" : "/dashboard"
 
   } catch (error) {
     console.error("Login error:", error)

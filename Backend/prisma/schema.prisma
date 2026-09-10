@@ -52,6 +52,8 @@ model Company {
   logo              String?
   refreshToken      String?
   size              CompanySize
+  phoneNumber       String?
+  companyType       String?
   verificationToken String?
   jobs              Job[]
 }
@@ -70,6 +72,10 @@ model Job {
   isInternship       Boolean          @default(false)
   internshipDuration String?
   targetAudience     TargetAudience[]
+  category           String?
+  workMode           RemotePreference?
+  positions          Int?
+  isDraft            Boolean          @default(false)
   postedAt           DateTime         @default(now())
   deadline           DateTime
   isActive           Boolean          @default(true)
@@ -151,6 +157,7 @@ enum ExperienceLevel {
 enum ApplicationStatus {
   PENDING
   REVIEWED
+  SHORTLISTED
   INTERVIEW
   REJECTED
   ACCEPTED

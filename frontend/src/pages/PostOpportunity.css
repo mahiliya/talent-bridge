@@ -1,0 +1,163 @@
+/* Post Opportunity form. Uses the shared dashboard design tokens
+   (cream surface, teal, terracotta accent, square inputs). */
+
+.post-form {
+  max-width: 860px;
+  display: grid;
+  gap: 22px;
+  margin-top: 8px;
+}
+
+.post-section {
+  border: 1px solid #ddd5c8;
+  background: #fffdf8;
+  padding: 24px 26px;
+  margin: 0;
+}
+
+.post-section legend {
+  font: 600 12px/1.2 Arial, sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #b96e45;
+  padding: 0 8px;
+  margin-left: -8px;
+}
+
+.post-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.post-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.post-grid .post-field {
+  margin-top: 0;
+}
+
+.post-label {
+  font: 600 13px Arial, sans-serif;
+  color: #17262b;
+}
+
+.post-label .req {
+  color: #b96e45;
+  margin-left: 2px;
+}
+
+.post-form input,
+.post-form select,
+.post-form textarea {
+  width: 100%;
+  border: 1px solid #cfc8ba;
+  background: #fffdf8;
+  padding: 12px;
+  font: 15px Arial, sans-serif;
+  color: #17262b;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+.post-form textarea {
+  resize: vertical;
+}
+
+.post-form select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.post-form input:focus,
+.post-form select:focus,
+.post-form textarea:focus {
+  outline: none;
+  border-color: #b96e45;
+  box-shadow: 0 0 0 2px rgba(185, 110, 69, 0.18);
+}
+
+.post-hint {
+  font: 12px Arial, sans-serif;
+  color: #657477;
+}
+
+.post-error {
+  font: 12px Arial, sans-serif;
+  color: #9a3f32;
+}
+
+.post-field.has-error input,
+.post-field.has-error select,
+.post-field.has-error textarea {
+  border-color: #9a3f32;
+}
+
+/* Actions */
+.post-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn-secondary {
+  border: 1px solid #173f45;
+  background: #dce8df;
+  color: #173f45;
+  padding: 12px 17px;
+  font: 600 13px Arial, sans-serif;
+  cursor: pointer;
+}
+
+.btn-ghost {
+  border: 0;
+  background: none;
+  color: #657477;
+  padding: 12px 8px;
+  font: 600 13px Arial, sans-serif;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-secondary:disabled,
+.post-actions .primary-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Success card */
+.post-success {
+  max-width: 860px;
+  border: 1px solid #ddd5c8;
+  background: #fffdf8;
+  border-left: 4px solid #2f6b3f;
+  padding: 26px;
+}
+
+.post-success h2 {
+  font-size: 24px;
+  font-weight: normal;
+  margin: 8px 0 12px;
+}
+
+.post-success p:not(.eyebrow) {
+  font: 15px/1.6 Arial, sans-serif;
+  color: #536467;
+  margin: 0 0 18px;
+}
+
+@media (max-width: 760px) {
+  .post-grid {
+    grid-template-columns: 1fr;
+  }
+  .post-actions .primary-action,
+  .post-actions .btn-secondary {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { ApplicationStatus } from '@prisma/client';
 import { ApplicationService } from '../services/applicationService';
 import {
   ResourceNotFoundError,
@@ -83,26 +84,26 @@ export class ApplicationController {
     }
   };
 
-  // Get application by ID
-  getApplicationById = async (req: Request, res: Response) => {
+  // Get application by ID. Identity is taken from the auth token (not the
+  // query string) so a caller can only read applications they are party to.
+  getApplicationById = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { userType, entityId } = req.query;
-      
-      const application = await ApplicationService.getApplicationById(
-        String(id),
-        entityId as string,
-        userType as 'user' | 'company'
-      );
-      
-      res.json(application);
+      const entityType: 'user' | 'company' = req.company ? 'company' : 'user';
+      const entityId = req.company?.id || req.user?.id;
+      if (!entityId) {
+        return res.status(401).json({ error: 'Authentication required.' });
+      }
+
+      const application = await ApplicationService.getApplicationById(String(id), entityId, entityType);
+      return res.json(application);
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        res.status(404).json({ error: error.message });
+        return res.status(404).json({ error: error.message });
       } else if (error instanceof ForbiddenError) {
-        res.status(403).json({ error: error.message });
+        return res.status(403).json({ error: error.message });
       } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
+        return res.status(500).json({ error: 'An unexpected error occurred' });
       }
     }
   };
@@ -116,7 +117,12 @@ export class ApplicationController {
         return res.status(400).json({ error: 'Company ID is required' });
       }
       const { status } = req.body;
-      
+      if (!status || !Object.values(ApplicationStatus).includes(status)) {
+        return res.status(400).json({
+          error: `Invalid application status. Allowed: ${Object.values(ApplicationStatus).join(', ')}.`,
+        });
+      }
+
       const application = await ApplicationService.updateApplicationStatus(
         String(id),
         companyId.toString(),
@@ -156,14 +162,24 @@ export class ApplicationController {
     }
   };
 
-  // Get job applications
-  getJobApplications = async (req: Request, res: Response) => {
+  // Get applicants for one of the company's own jobs, ranked by match score.
+  // Company-only + ownership enforced in the service.
+  getJobApplications = async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { jobId } = req.params;
-     const applications = await this.applicationService.getJobApplications(String(jobId));
-      res.json(applications);
+      const companyId = req.company?.id;
+      if (!companyId) {
+        return res.status(403).json({ error: 'Company authentication required.' });
+      }
+      const result = await ApplicationService.getRankedApplicantsForJob(companyId, String(req.params.jobId));
+      return res.json(result);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      if (error instanceof ResourceNotFoundError) {
+        return res.status(404).json({ error: error.message });
+      } else if (error instanceof ForbiddenError) {
+        return res.status(403).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: 'An unexpected error occurred' });
+      }
     }
   };
 

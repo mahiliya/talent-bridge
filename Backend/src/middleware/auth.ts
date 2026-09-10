@@ -107,6 +107,18 @@ export const authenticate = ( req: Request, res: Response, next: NextFunction ):
   }
 };
 
+// Optional authentication: if a token is present it is validated and req.user /
+// req.company are populated (reusing `authenticate`); if no token is present the
+// request continues as an anonymous/public caller. Used by endpoints that are
+// public for some resources but owner-restricted for others.
+export const optionalAuthenticate = ( req: Request, res: Response, next: NextFunction ): void => {
+  if (!req.headers.authorization) {
+    next();
+    return;
+  }
+  authenticate(req, res, next);
+};
+
 // Middleware to authenticate users only
 export const authenticateUser = ( req: Request, res: Response, next: NextFunction ): void => { authenticate(req, res, (): void => { if (!req.user) { res.status(403).json({ success: false, message: 'Access forbidden. User authentication required.', error: 'USER_ACCESS_REQUIRED' }); return; }
     next();

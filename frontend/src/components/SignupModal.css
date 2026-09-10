@@ -181,19 +181,41 @@
   
   .signup-modal-form input[type="text"],
   .signup-modal-form input[type="email"],
-  .signup-modal-form input[type="password"] {
+  .signup-modal-form input[type="password"],
+  .signup-modal-form input[type="tel"],
+  .signup-modal-form input[type="url"],
+  .signup-modal-form select {
     width: 100%;
     padding: 12px 12px 12px 40px;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
     font-size: 1rem;
     transition: all 0.3s ease;
+    background-color: #fff;
+    color: #1a202c;
   }
-  
-  .signup-modal-form input:focus {
+
+  .signup-modal-form select {
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+
+  .signup-modal-form input:focus,
+  .signup-modal-form select:focus {
     outline: none;
     border-color: #4299e1;
     box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
+  }
+
+  .signup-form-group.has-error select {
+    border-color: #e53e3e;
+  }
+
+  .optional-hint {
+    font-weight: 400;
+    color: #a0aec0;
+    font-size: 0.85rem;
   }
   
   .signup-modal-form input::placeholder {
@@ -217,6 +239,17 @@
     color: #e53e3e;
     font-size: 0.85rem;
     margin-top: 6px;
+  }
+
+  /* Prominent form-level error shown just above the submit button. */
+  .signup-form-error {
+    background: #fdecea;
+    border: 1px solid #f5b5ad;
+    color: #b23b2e;
+    font-size: 0.9rem;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin-bottom: 14px;
   }
   
   /* Terms Checkbox */

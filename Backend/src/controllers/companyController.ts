@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
 import { CompanyService } from '../services/companyService';
-import { CreateCompanyDto, UpdateCompanyDto } from '../types/company.types';
+import { CreateCompanyDto, UpdateCompanyDto, RegisterCompanyDto } from '../types/company.types';
 import {
   EmailAlreadyExistsError,
   PasswordMismatchError,
   InvalidEmailFormatError,
   InvalidPasswordError,
   CompanyNameRequiredError,
+  ValidationError,
   ResourceNotFoundError,
 } from '../utils/errors';
 
@@ -17,26 +18,42 @@ export class CompanyController {
     this.companyService = new CompanyService();
   }
 
-  // Register a new company
+  // Register a new company (public). Reuses the shared password hashing and
+  // validation; companies live in their own table so they are always
+  // distinguishable from user accounts.
   register = async (req: Request, res: Response) => {
     try {
-      const { name, email, password, confirmPassword } = req.body;
-      const { industry, size, location } = req.body;
-      const company = await CompanyService.register(name, email, password, confirmPassword, industry, size, location);
-      res.status(201).json(company);
+      const { name, email, password, confirmPassword, industry, location, phoneNumber, companyType, website } =
+        req.body as RegisterCompanyDto;
+      const company = await CompanyService.register({
+        name,
+        email,
+        password,
+        confirmPassword,
+        industry,
+        location,
+        phoneNumber,
+        companyType,
+        website,
+      });
+      res.status(201).json({
+        success: true,
+        message: 'Company registered successfully',
+        company,
+      });
     } catch (error) {
       if (error instanceof EmailAlreadyExistsError) {
-        res.status(409).json({ error: error.message });
-      } else if (error instanceof PasswordMismatchError) {
-        res.status(400).json({ error: error.message });
-      } else if (error instanceof InvalidEmailFormatError) {
-        res.status(400).json({ error: error.message });
-      } else if (error instanceof InvalidPasswordError) {
-        res.status(400).json({ error: error.message });
-      } else if (error instanceof CompanyNameRequiredError) {
-        res.status(400).json({ error: error.message });
+        res.status(409).json({ success: false, message: error.message, error: 'EMAIL_ALREADY_EXISTS' });
+      } else if (
+        error instanceof PasswordMismatchError ||
+        error instanceof InvalidEmailFormatError ||
+        error instanceof InvalidPasswordError ||
+        error instanceof CompanyNameRequiredError ||
+        error instanceof ValidationError
+      ) {
+        res.status(400).json({ success: false, message: error.message, error: 'VALIDATION_ERROR' });
       } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
+        res.status(500).json({ success: false, message: 'An unexpected error occurred', error: 'INTERNAL_SERVER_ERROR' });
       }
     }
   };
