@@ -134,30 +134,34 @@ export class MatchService {
     };
 
     // --- Skills (45): ratio of required skills matched. Exact = 1.0, partial
-    // (substring either direction, e.g. "node" vs "node.js") = 0.5. ---
-    const reqSkills = (job.requirements ?? []).map(lc).filter(Boolean);
+    // (substring either direction, e.g. "node" vs "node.js") = 0.5. The
+    // original-cased requirement names are kept so the breakdown can name the
+    // skills the applicant does and does not have. ---
+    const reqSkillsRaw = (job.requirements ?? []).filter((s) => lc(s));
     const userSkills = (user.skills ?? []).map(lc).filter(Boolean);
     let matchedCredit = 0;
-    const exact: string[] = [];
-    const partial: string[] = [];
+    const matched: string[] = [];
     const missing: string[] = [];
-    for (const req of reqSkills) {
+    for (const reqRaw of reqSkillsRaw) {
+      const req = lc(reqRaw);
       let best = 0;
       for (const skill of userSkills) {
         if (skill === req) { best = 1; break; }
         if (skill.includes(req) || req.includes(skill)) best = Math.max(best, 0.5);
       }
       matchedCredit += best;
-      if (best === 1) exact.push(req);
-      else if (best >= 0.5) partial.push(req);
-      else missing.push(req);
+      if (best > 0) matched.push(reqRaw);
+      else missing.push(reqRaw);
     }
-    const skillsApplicable = reqSkills.length > 0;
-    const skillsEarned = skillsApplicable ? Math.round((matchedCredit / reqSkills.length) * 45) : 0;
-    const skillsDetail = skillsApplicable
-      ? `${exact.length} exact + ${partial.length} partial of ${reqSkills.length} required skills` +
-        (missing.length ? ` (missing: ${missing.join(', ')})` : '')
-      : 'Job lists no required skills';
+    const reqCount = reqSkillsRaw.length;
+    const skillsApplicable = reqCount > 0;
+    const skillsEarned = skillsApplicable ? Math.round((matchedCredit / reqCount) * 45) : 0;
+    const skillsDetail = !skillsApplicable
+      ? 'Job lists no required skills'
+      : (matched.length
+          ? `The applicant has ${matched.join(', ')} — ${matched.length} of ${reqCount} required skill${reqCount === 1 ? '' : 's'}.`
+          : `The applicant matches none of the ${reqCount} required skills.`) +
+        (missing.length ? ` Missing: ${missing.join(', ')}.` : '');
 
     // --- Field of study (15): applicant's field-of-study terms found in the
     // job's category/title/description/requirements text. ---

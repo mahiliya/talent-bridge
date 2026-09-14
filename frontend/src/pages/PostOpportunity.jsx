@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import CompanySidebar from '../components/CompanySidebar';
 import './UserDashboard.css';
 import './CompanyDashboard.css';
@@ -30,8 +30,16 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 
 function PostOpportunity() {
   const navigate = useNavigate();
+  // When a :jobId is present in the route we are editing an existing
+  // opportunity; otherwise we are creating a new one. The same form serves both.
+  const { jobId } = useParams();
+  const isEdit = Boolean(jobId);
   const [company, setCompany] = useState(null);
   const [authError, setAuthError] = useState('');
+  const [jobLoaded, setJobLoaded] = useState(!isEdit);
+  // Draft state of the opportunity being edited, so we can offer the right
+  // save/publish actions.
+  const [existingIsDraft, setExistingIsDraft] = useState(false);
 
   // Form state
   const [isInternship, setIsInternship] = useState(true);
@@ -63,7 +71,8 @@ function PostOpportunity() {
     }
     const verify = async () => {
       try {
-        const meResponse = await fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+        const headers = { Authorization: `Bearer ${token}` };
+        const meResponse = await fetch(`${API_URL}/auth/me`, { headers });
         if (!meResponse.ok) throw new Error('Your session has expired. Please log in again.');
         const meData = await meResponse.json();
         if (meData.user && !meData.company) {
@@ -72,12 +81,36 @@ function PostOpportunity() {
         }
         if (!meData.company) throw new Error('This page is available to Company accounts only.');
         setCompany(meData.company);
+
+        // In edit mode, load the existing opportunity and prefill the form.
+        // The backend only returns drafts/inactive jobs to their owner, so a
+        // 404 here also covers "not yours".
+        if (isEdit) {
+          const jobRes = await fetch(`${API_URL}/jobs/${jobId}`, { headers });
+          if (!jobRes.ok) throw new Error('This opportunity could not be found, or it does not belong to your company.');
+          const job = await jobRes.json();
+          setIsInternship(Boolean(job.isInternship));
+          setTitle(job.title || '');
+          setCategory(job.category || '');
+          setDescription(job.description || '');
+          setRequiredSkills(Array.isArray(job.requirements) ? job.requirements.join(', ') : '');
+          setExperienceLevel(job.experienceLevel || '');
+          setTargetAudience(job.targetAudience?.[0] || 'BOTH');
+          setPositions(job.positions != null ? String(job.positions) : '');
+          setLocation(job.location || '');
+          setWorkMode(job.workMode || '');
+          setInternshipDuration(job.internshipDuration || '');
+          setSalary(job.salary || '');
+          setDeadline(job.deadline ? new Date(job.deadline).toISOString().slice(0, 10) : '');
+          setExistingIsDraft(Boolean(job.isDraft));
+          setJobLoaded(true);
+        }
       } catch (err) {
         setAuthError(err.message);
       }
     };
     verify();
-  }, [navigate, token]);
+  }, [navigate, token, isEdit, jobId]);
 
   const skillsArray = requiredSkills
     .split(',')
@@ -140,8 +173,8 @@ function PostOpportunity() {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${API_URL}/jobs`, {
-        method: 'POST',
+      const response = await fetch(isEdit ? `${API_URL}/jobs/${jobId}` : `${API_URL}/jobs`, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(buildPayload(isDraft)),
       });
@@ -150,7 +183,7 @@ function PostOpportunity() {
         setServerError(data.error || data.message || 'We could not save this opportunity. Please try again.');
         return;
       }
-      setResult({ isDraft, job: data });
+      setResult({ isDraft, job: data, edited: isEdit });
     } catch (err) {
       setServerError(err.message || 'Unable to reach the server. Please try again.');
     } finally {
@@ -184,7 +217,7 @@ function PostOpportunity() {
       </main>
     );
   }
-  if (!company) {
+  if (!company || !jobLoaded) {
     return (
       <main className="dashboard-page">
         <p className="dashboard-state">Loading…</p>
@@ -200,18 +233,24 @@ function PostOpportunity() {
         <header className="dashboard-header">
           <div>
             <p className="eyebrow">Company workspace</p>
-            <h1>Post Opportunity</h1>
-            <p>Create an internship or job. Save it as a draft or publish it to the public opportunities page.</p>
+            <h1>{isEdit ? 'Edit Opportunity' : 'Post Opportunity'}</h1>
+            <p>
+              {isEdit
+                ? 'Update this opportunity. Your changes take effect immediately — no need to repost.'
+                : 'Create an internship or job. Save it as a draft or publish it to the public opportunities page.'}
+            </p>
           </div>
         </header>
 
         {result ? (
           <section className="post-success" role="status">
-            <p className="eyebrow">{result.isDraft ? 'Draft saved' : 'Published'}</p>
+            <p className="eyebrow">{result.edited ? 'Changes saved' : result.isDraft ? 'Draft saved' : 'Published'}</p>
             <h2>
-              {result.isDraft
-                ? `“${result.job.title}” was saved as a draft.`
-                : `“${result.job.title}” is now live.`}
+              {result.edited
+                ? `“${result.job.title}” has been updated.`
+                : result.isDraft
+                  ? `“${result.job.title}” was saved as a draft.`
+                  : `“${result.job.title}” is now live.`}
             </h2>
             <p>
               {result.isDraft
@@ -228,12 +267,14 @@ function PostOpportunity() {
                   View opportunity
                 </button>
               )}
-              <button type="button" className="btn-secondary" onClick={() => navigate('/company/dashboard')}>
-                Back to Dashboard
+              <button type="button" className="btn-secondary" onClick={() => navigate('/company/opportunities')}>
+                My Opportunities
               </button>
-              <button type="button" className="btn-ghost" onClick={resetForm}>
-                Post another
-              </button>
+              {!isEdit && (
+                <button type="button" className="btn-ghost" onClick={resetForm}>
+                  Post another
+                </button>
+              )}
             </div>
           </section>
         ) : (
@@ -390,12 +431,27 @@ function PostOpportunity() {
 
             <div className="post-actions">
               <button type="submit" className="primary-action" disabled={submitting}>
-                {submitting ? 'Working…' : 'Publish Opportunity'}
+                {submitting
+                  ? 'Working…'
+                  : isEdit
+                    ? existingIsDraft
+                      ? 'Publish Opportunity'
+                      : 'Save Changes'
+                    : 'Publish Opportunity'}
               </button>
-              <button type="button" className="btn-secondary" disabled={submitting} onClick={() => submit(true)}>
-                Save as Draft
-              </button>
-              <button type="button" className="btn-ghost" disabled={submitting} onClick={() => navigate('/company/dashboard')}>
+              {/* A draft (whether creating or editing) can still be saved as a
+                  draft; a published opportunity stays published on save. */}
+              {(!isEdit || existingIsDraft) && (
+                <button type="button" className="btn-secondary" disabled={submitting} onClick={() => submit(true)}>
+                  Save as Draft
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={submitting}
+                onClick={() => navigate(isEdit ? '/company/opportunities' : '/company/dashboard')}
+              >
                 Cancel
               </button>
             </div>

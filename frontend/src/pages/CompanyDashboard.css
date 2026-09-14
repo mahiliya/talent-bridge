@@ -64,8 +64,51 @@
 .status-accepted { color: #2f6b3f; background: #dcecdf; }
 .status-rejected { color: #9a3f32; background: #f8dfd5; }
 
+/* ---- My Opportunities: job management cards ---- */
+.job-card-list { display: grid; gap: 14px; }
+.job-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+  background: #fffdf8;
+  border: 1px solid #ddd5c8;
+}
+.job-card-main { min-width: 0; }
+.job-card-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.job-card-heading h3 { font-size: 19px; font-weight: normal; margin: 0; }
+.job-card-meta { font: 13px Arial, sans-serif; color: #657477; margin: 6px 0 0; }
+
+.job-state {
+  font: 700 10px Arial, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid #d7d1c4;
+}
+.job-state-active { color: #2f6b3f; background: #dcecdf; border-color: #bcd7c2; }
+.job-state-draft { color: #8a6d3b; background: #f7efdd; border-color: #e6d6b3; }
+.job-state-closed { color: #9a3f32; background: #f8dfd5; border-color: #ecc4b6; }
+
+.job-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; justify-content: flex-end; }
+.job-action {
+  border: 1px solid #cfc8ba;
+  background: #fffdf8;
+  color: #17262b;
+  padding: 8px 14px;
+  font: 600 13px Arial, sans-serif;
+  cursor: pointer;
+}
+.job-action:hover { background: #f6f2e9; }
+.job-action:disabled { opacity: 0.6; cursor: not-allowed; }
+.job-action-primary { border-color: #2f6b3f; color: #2f6b3f; }
+.job-action-danger { border-color: #9a3f32; color: #9a3f32; }
+
 @media (max-width: 760px) {
   .company-stat-cards {
     grid-template-columns: 1fr;
   }
+  .job-card { flex-direction: column; align-items: stretch; }
+  .job-actions { justify-content: flex-start; }
 }

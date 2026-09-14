@@ -66,8 +66,27 @@
   padding: 3px 9px;
 }
 
+/* Explicit "View Details" affordance on each ranked applicant row (the whole
+   row is also clickable). */
+.applicant-action {
+  flex: 0 0 auto;
+  font: 600 13px Arial, sans-serif;
+  color: #b96e45;
+  white-space: nowrap;
+}
+
+/* ---- Decision panel (status + reversible actions) ---- */
+.decision-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin: 8px 0 26px;
+}
+.decision-status { display: flex; align-items: center; gap: 10px; }
+
 /* ---- Decision bar ---- */
-.decision-bar { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 26px; }
+.decision-bar { display: flex; flex-wrap: wrap; gap: 12px; }
 .decision-btn {
   border: 1px solid #cfc8ba;
   background: #fffdf8;

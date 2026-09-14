@@ -3,6 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import './UserDashboard.css';
 
 const API_URL = 'http://localhost:3000/api';
+
+// Turn an ApplicationStatus enum value (e.g. "SHORTLISTED") into a readable
+// label (e.g. "Shortlisted") so company-set statuses show cleanly here.
+const humanizeStatus = (value) =>
+  String(value || 'PENDING')
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+
 const PROFILE_FIELDS = [
   'fullName',
   'university',
@@ -338,13 +349,7 @@ function UserDashboard() {
                     </p>
                   </div>
                   <span className={`status status-${String(application.status || 'PENDING').toLowerCase()}`}>
-                    {application.status === 'PENDING'
-                      ? 'Pending'
-                      : application.status === 'ACCEPTED'
-                        ? 'Accepted'
-                        : application.status === 'REJECTED'
-                          ? 'Rejected'
-                          : application.status}
+                    {humanizeStatus(application.status)}
                   </span>
                   <button type="button" className="text-link" onClick={() => withdrawApplication(application.id)}>Withdraw</button>
                 </article>

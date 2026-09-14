@@ -30,7 +30,11 @@ function InternshipDetailsPage() {
   useEffect(() => {
     const loadJob = async () => {
       try {
-        const response = await fetch(`${API_URL}/jobs/${id}`)
+        // Send the token when present so an owning company can preview its own
+        // draft / inactive opportunity (the backend keeps these owner-only).
+        const response = await fetch(`${API_URL}/jobs/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
         if (!response.ok) {
           throw new Error("This opportunity could not be found.")
         }
@@ -43,7 +47,7 @@ function InternshipDetailsPage() {
     }
 
     loadJob()
-  }, [id])
+  }, [id, token])
 
   // Determine whether the logged-in user has already applied to this job so the
   // applied state survives a page refresh.

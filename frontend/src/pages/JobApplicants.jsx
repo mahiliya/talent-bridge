@@ -123,6 +123,7 @@ function JobApplicants() {
                   <span className={`status status-${String(row.status || 'PENDING').toLowerCase()}`}>
                     {humanize(row.status || 'PENDING')}
                   </span>
+                  <span className="applicant-action" aria-hidden="true">View Details →</span>
                 </article>
               ))
             ) : (

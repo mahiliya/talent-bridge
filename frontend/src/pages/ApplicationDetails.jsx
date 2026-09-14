@@ -128,19 +128,30 @@ function ApplicationDetails() {
         {error && <p className="dashboard-error">{error}</p>}
         {notice && <p className="profile-saved">{notice}</p>}
 
-        {/* Decision actions */}
-        <section className="decision-bar">
-          {ACTIONS.map((action) => (
-            <button
-              key={action.status}
-              type="button"
-              className={`decision-btn decision-${action.status.toLowerCase()} ${application.status === action.status ? 'current' : ''}`}
-              disabled={saving || application.status === action.status}
-              onClick={() => updateStatus(action.status)}
-            >
-              {application.status === action.status ? `${action.label}ed` : action.label}
-            </button>
-          ))}
+        {/* Decision actions. The current decision is shown as the status; only
+            the remaining decisions are offered — so a Shortlisted application
+            shows Accept / Reject, and decisions stay reversible without ever
+            being contradictory (status is a single value). */}
+        <section className="decision-panel">
+          <div className="decision-status">
+            <span className="eyebrow">Application status</span>
+            <span className={`status status-${String(application.status || 'PENDING').toLowerCase()}`}>
+              {humanize(application.status || 'PENDING')}
+            </span>
+          </div>
+          <div className="decision-bar">
+            {ACTIONS.filter((action) => action.status !== application.status).map((action) => (
+              <button
+                key={action.status}
+                type="button"
+                className={`decision-btn decision-${action.status.toLowerCase()}`}
+                disabled={saving}
+                onClick={() => updateStatus(action.status)}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
         </section>
 
         <div className="detail-grid">

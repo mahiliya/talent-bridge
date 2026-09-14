@@ -19,6 +19,7 @@ function MyOpportunities() {
   const [company, setCompany] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
   const token = localStorage.getItem('accessToken');
 
@@ -54,6 +55,49 @@ function MyOpportunities() {
     return job.isActive ? 'Active' : 'Closed';
   };
 
+  // Replace a single job in local state after a status change so the UI updates
+  // without a full reload. Preserves the applicationCount the list relies on.
+  const mergeJob = (updated) =>
+    setJobs((prev) => prev.map((j) => (j.id === updated.id ? { ...j, ...updated } : j)));
+
+  // Deactivate / re-activate a published opportunity (owner-only, enforced by
+  // the backend). Drafts must be published first, so they use `publish` below.
+  const toggleActive = async (job) => {
+    setError('');
+    setBusyId(job.id);
+    try {
+      const res = await fetch(`${API_URL}/jobs/${job.id}/toggle`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not update this opportunity.');
+      mergeJob(body);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const publish = async (job) => {
+    setError('');
+    setBusyId(job.id);
+    try {
+      const res = await fetch(`${API_URL}/jobs/${job.id}/publish`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not publish this opportunity.');
+      mergeJob(body);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (!company) {
     return (
       <main className="dashboard-page">
@@ -70,7 +114,7 @@ function MyOpportunities() {
           <div>
             <p className="eyebrow">Company workspace</p>
             <h1>My Opportunities</h1>
-            <p>Select an opportunity to review and rank its applicants.</p>
+            <p>View, edit, manage applicants, and open or close each opportunity.</p>
           </div>
           <button type="button" className="primary-action" onClick={() => navigate('/company/post-opportunity')}>
             Post Opportunity
@@ -80,39 +124,72 @@ function MyOpportunities() {
         {error && <p className="dashboard-error">{error}</p>}
 
         <section className="dashboard-section">
-          <div className="opportunity-list">
+          <div className="job-card-list">
             {jobs.length ? (
               jobs.map((job) => {
                 const type = job.isInternship ? 'Internship' : humanize(job.jobType) || 'Job';
                 const count = job.applicationCount ?? 0;
-                const isDraft = job.isDraft;
+                const busy = busyId === job.id;
                 return (
-                  <article
-                    className="opportunity"
-                    key={job.id}
-                    role={isDraft ? undefined : 'link'}
-                    tabIndex={isDraft ? undefined : 0}
-                    style={{ cursor: isDraft ? 'default' : 'pointer' }}
-                    onClick={() => { if (!isDraft) navigate(`/company/jobs/${job.id}/applicants`); }}
-                    onKeyDown={(event) => {
-                      if (!isDraft && (event.key === 'Enter' || event.key === ' ')) {
-                        event.preventDefault();
-                        navigate(`/company/jobs/${job.id}/applicants`);
-                      }
-                    }}
-                  >
-                    <div>
-                      <h3>{job.title}</h3>
-                      <p>
+                  <article className="job-card" key={job.id}>
+                    <div className="job-card-main">
+                      <div className="job-card-heading">
+                        <h3>{job.title}</h3>
+                        <span className={`job-state job-state-${statusLabel(job).toLowerCase()}`}>
+                          {statusLabel(job)}
+                        </span>
+                      </div>
+                      <p className="job-card-meta">
                         {type}
                         {job.location ? ` · ${job.location}` : ''}
-                        {` · ${statusLabel(job)}`}
+                        {job.workMode ? ` · ${humanize(job.workMode)}` : ''}
+                        {` · ${count} application${count === 1 ? '' : 's'}`}
+                        {job.deadline ? ` · Closes ${new Date(job.deadline).toLocaleDateString()}` : ''}
                       </p>
                     </div>
-                    <span>
-                      {count} application{count === 1 ? '' : 's'}
-                      {isDraft ? '' : ' →'}
-                    </span>
+
+                    <div className="job-actions">
+                      <button
+                        type="button"
+                        className="job-action"
+                        onClick={() => navigate(`/internships/${job.id}`)}
+                      >
+                        View Job
+                      </button>
+                      <button
+                        type="button"
+                        className="job-action"
+                        onClick={() => navigate(`/company/jobs/${job.id}/edit`)}
+                      >
+                        Edit Job
+                      </button>
+                      <button
+                        type="button"
+                        className="job-action"
+                        onClick={() => navigate(`/company/jobs/${job.id}/applicants`)}
+                      >
+                        View Applications
+                      </button>
+                      {job.isDraft ? (
+                        <button
+                          type="button"
+                          className="job-action job-action-primary"
+                          disabled={busy}
+                          onClick={() => publish(job)}
+                        >
+                          {busy ? 'Working…' : 'Publish'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`job-action ${job.isActive ? 'job-action-danger' : 'job-action-primary'}`}
+                          disabled={busy}
+                          onClick={() => toggleActive(job)}
+                        >
+                          {busy ? 'Working…' : job.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      )}
+                    </div>
                   </article>
                 );
               })
