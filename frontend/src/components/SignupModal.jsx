@@ -40,13 +40,13 @@ const FieldIcon = () => (
   </svg>
 );
 
-function SignupModal({ isOpen, onClose }) {
+function SignupModal({ isOpen, onClose, defaultAccountType = 'user', redirectTo }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [accountType, setAccountType] = useState('user');
+  const [accountType, setAccountType] = useState(defaultAccountType);
 
   // Company-only fields
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -231,7 +231,9 @@ function SignupModal({ isOpen, onClose }) {
     localStorage.setItem('refreshToken', loginData.refreshToken);
     localStorage.setItem('company', JSON.stringify(loginData.company));
     onClose();
-    window.location.href = '/company/dashboard';
+    // A company that started from a protected page returns there; otherwise the
+    // company dashboard.
+    window.location.href = redirectTo || '/company/dashboard';
     return true;
   };
 
@@ -264,7 +266,9 @@ function SignupModal({ isOpen, onClose }) {
     localStorage.setItem('refreshToken', loginData.refreshToken);
     localStorage.setItem('user', JSON.stringify(loginData.user));
     onClose();
-    window.location.href = '/dashboard';
+    // Return to the intended protected page (e.g. /internships) after signing
+    // up, falling back to the user dashboard.
+    window.location.href = redirectTo || '/dashboard';
     return true;
   };
 
@@ -533,7 +537,15 @@ function SignupModal({ isOpen, onClose }) {
         </form>
 
         <div className="signup-modal-footer">
-          <p>Already have an account? <a href="/login" className="login-link">Sign in</a></p>
+          <p>
+            Already have an account?{' '}
+            <a
+              href={`/login?type=${accountType}${redirectTo ? `&from=${encodeURIComponent(redirectTo)}` : ''}`}
+              className="login-link"
+            >
+              Sign in
+            </a>
+          </p>
         </div>
       </div>
     </div>

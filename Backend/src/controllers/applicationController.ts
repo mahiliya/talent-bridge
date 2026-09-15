@@ -108,6 +108,57 @@ export class ApplicationController {
     }
   };
 
+  // Stream an applicant's resume so an authorized company (or the applicant)
+  // can view the PDF in the browser. Identity comes from the auth token; the
+  // service enforces that only the applicant or the owning company may access
+  // it. Resumes are stored as base64 data URLs, so we decode and serve the
+  // bytes with the correct content type rather than exposing the raw string.
+  getApplicationResume = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const entityType: 'user' | 'company' = req.company ? 'company' : 'user';
+      const entityId = req.company?.id || req.user?.id;
+      if (!entityId) {
+        return res.status(401).json({ error: 'Authentication required.' });
+      }
+
+      const resume = await ApplicationService.getApplicationResume(String(id), entityId, entityType);
+
+      // Stored resumes are base64 data URLs, e.g. "data:application/pdf;base64,....".
+      const dataUrlMatch = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(resume);
+      if (dataUrlMatch) {
+        const mime = dataUrlMatch[1] || 'application/pdf';
+        const isBase64 = dataUrlMatch[2] === ';base64';
+        const raw = dataUrlMatch[3];
+        const buffer = isBase64
+          ? Buffer.from(raw, 'base64')
+          : Buffer.from(decodeURIComponent(raw), 'utf-8');
+
+        res.setHeader('Content-Type', mime);
+        // "inline" so the browser renders the PDF instead of downloading it.
+        res.setHeader('Content-Disposition', 'inline; filename="resume.pdf"');
+        res.setHeader('Content-Length', String(buffer.length));
+        return res.status(200).end(buffer);
+      }
+
+      // If a real external URL was stored, send the viewer there.
+      if (/^https?:\/\//i.test(resume)) {
+        return res.redirect(resume);
+      }
+
+      // Anything else (e.g. a stale/relative path) cannot be rendered.
+      return res.status(404).json({ error: 'The stored resume is not in a viewable format.' });
+    } catch (error) {
+      if (error instanceof ResourceNotFoundError) {
+        return res.status(404).json({ error: error.message });
+      } else if (error instanceof ForbiddenError) {
+        return res.status(403).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: 'An unexpected error occurred' });
+      }
+    }
+  };
+
   // Update application status
   updateApplicationStatus = async (req: AuthenticatedRequest, res: Response) => {
     try {

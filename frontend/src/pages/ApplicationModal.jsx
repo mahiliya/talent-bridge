@@ -76,11 +76,20 @@ function ApplicationModal({ internship, onClose, onApplied }) {
 
   const handleCVUpload = (e) => {
     const file = e.target.files[0]
-    if (file) {
-      setCvName(file.name)
-      setCvFile(file)
-      setHasCV(true)
+    if (!file) return
+    // Resumes must be PDF so the company can reliably view them in the browser.
+    if (file.type !== "application/pdf") {
+      setErrorMessage("Resume must be a PDF file.")
+      return
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage("Resume must be 5MB or smaller.")
+      return
+    }
+    setErrorMessage("")
+    setCvName(file.name)
+    setCvFile(file)
+    setHasCV(true)
   }
 
   const deleteCV = () => {
@@ -227,7 +236,7 @@ function ApplicationModal({ internship, onClose, onApplied }) {
                     <label className="cv-action-button update-button">
                       <Edit2 size={16} />
                       Update CV
-                      <input type="file" accept=".pdf,.doc,.docx" onChange={handleCVUpload} hidden />
+                      <input type="file" accept="application/pdf,.pdf" onChange={handleCVUpload} hidden />
                     </label>
                     <button type="button" className="cv-action-button delete-button" onClick={deleteCV}>
                       <Trash2 size={16} />
@@ -240,9 +249,9 @@ function ApplicationModal({ internship, onClose, onApplied }) {
                   <label className="upload-cv-button">
                     <Upload size={18} />
                     Upload your CV
-                    <input type="file" accept=".pdf,.doc,.docx" onChange={handleCVUpload} hidden required={!hasCV} />
+                    <input type="file" accept="application/pdf,.pdf" onChange={handleCVUpload} hidden required={!hasCV} />
                   </label>
-                  <span className="upload-hint">Accepted formats: PDF, DOC, DOCX (Max 5MB)</span>
+                  <span className="upload-hint">Accepted format: PDF (Max 5MB)</span>
                 </div>
               )}
             </div>

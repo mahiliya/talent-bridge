@@ -83,6 +83,9 @@
   position: relative;
   overflow: hidden;
   min-height: 180px;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .category-card::before {

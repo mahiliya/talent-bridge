@@ -30,6 +30,10 @@ router.put('/:id/status', authenticateCompany, applicationController.updateAppli
 // Withdraw application
 router.delete('/:id/withdraw', authenticateUser, applicationController.withdrawApplication as any);
 
+// Stream an applicant's resume (PDF). Authenticated; the service enforces that
+// only the applicant or the company that owns the job may access it.
+router.get('/:id/resume', authenticate, applicationController.getApplicationResume as any);
+
 // Get application by ID
 router.get('/:id', authenticate, applicationController.getApplicationById);
 

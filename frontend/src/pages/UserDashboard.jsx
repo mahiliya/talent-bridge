@@ -16,6 +16,7 @@ const humanizeStatus = (value) =>
 
 const PROFILE_FIELDS = [
   'fullName',
+  'phoneNumber',
   'university',
   'fieldOfStudy',
   'skills',
@@ -25,6 +26,10 @@ const PROFILE_FIELDS = [
   'resume',
   'portfolioWebsite',
 ];
+
+// Basic phone validation: at least 7 digits, optional leading + and common
+// separators. Deliberately permissive to accept international formats.
+const isValidPhone = (value) => /^\+?[0-9][0-9\s\-()]{6,}$/.test(String(value || '').trim());
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -41,7 +46,7 @@ function UserDashboard() {
 
   useEffect(() => {
     if (!token) {
-      navigate('/');
+      navigate('/login');
       return;
     }
 
@@ -54,6 +59,13 @@ function UserDashboard() {
         }
 
         const meData = await meResponse.json();
+        // Role enforcement: a signed-in company account belongs on the company
+        // dashboard, not here. Redirect rather than log them out (mirrors the
+        // company dashboard's handling of user accounts).
+        if (meData.company && !meData.user) {
+          navigate('/company/dashboard');
+          return;
+        }
         if (!meData.user) {
           throw new Error('This dashboard is available to User accounts only. Please log in as a User.');
         }
@@ -128,6 +140,14 @@ function UserDashboard() {
       .filter(Boolean);
     profile.remotePreference = profile.remotePreference || undefined;
     delete profile.resumeFile;
+
+    // Phone number is required so companies can contact accepted applicants.
+    profile.phoneNumber = String(profile.phoneNumber || '').trim();
+    if (!isValidPhone(profile.phoneNumber)) {
+      setError('Please enter a valid phone number so companies can contact you.');
+      setSaving(false);
+      return;
+    }
 
     if (resumeFile) {
       if (resumeFile.type !== 'application/pdf') {
@@ -380,6 +400,24 @@ function UserDashboard() {
               <label>
                 Full name
                 <input name="fullName" defaultValue={user.fullName || ''} required />
+              </label>
+              <label>
+                Email
+                <input type="email" value={user.email || ''} readOnly disabled />
+                <small>Your account email — used to contact you. Not editable here.</small>
+              </label>
+              <label>
+                Phone number
+                <input
+                  name="phoneNumber"
+                  type="tel"
+                  defaultValue={user.phoneNumber || ''}
+                  placeholder="e.g. +251 91 234 5678"
+                  pattern="\+?[0-9][0-9\s\-()]{6,}"
+                  title="Enter a valid phone number (at least 7 digits; may start with +)"
+                  required
+                />
+                <small>Companies use this to contact you after you're accepted.</small>
               </label>
               <label>
                 University

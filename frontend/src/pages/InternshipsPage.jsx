@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams, useParams } from "react-router-dom";
 import "./InternshipsPage.css";
 import InternshipCard from "../components/InternshipCard";
 
@@ -15,7 +15,14 @@ const humanize = (value) =>
     .join(" ");
 
 function InternshipsPage() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const { category: categoryParam } = useParams();
+  const [searchParams] = useSearchParams();
+  // Seed the search box from a category chosen on the landing page — either the
+  // /category/:category route slug ("frontend-development") or a ?category= query.
+  const initialCategory = categoryParam
+    ? categoryParam.replace(/-/g, " ")
+    : searchParams.get("category") || "";
+  const [searchTerm, setSearchTerm] = useState(initialCategory);
   const [sortBy, setSortBy] = useState("Most relevant");
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
@@ -28,7 +35,12 @@ function InternshipsPage() {
   useEffect(() => {
     const loadJobs = async () => {
       try {
-        const response = await fetch(`${API_URL}/jobs`);
+        // Browsing requires authentication (backend-enforced). Send the token
+        // stored at login; ProtectedRoute guarantees it exists on this page.
+        const token = localStorage.getItem("accessToken");
+        const response = await fetch(`${API_URL}/jobs`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (!response.ok) {
           throw new Error("Unable to load opportunities right now.");
         }

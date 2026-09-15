@@ -139,6 +139,7 @@ export class AuthService {
           id: true,
           fullName: true,
           email: true,
+          phoneNumber: true,
           university: true,
           fieldOfStudy: true,
           skills: true,

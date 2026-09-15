@@ -1,0 +1,175 @@
+/* Shared styles for the public landing marketing sections
+   (How it works, Explore CTA, Partner). Uses the same palette as the rest of
+   the marketing site: ink #232b4e, blue #394fd9 / #2693ff, muted #737b99. */
+
+.landing-section {
+  padding: 64px 0;
+}
+
+.landing-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.landing-heading {
+  text-align: center;
+  margin-bottom: 44px;
+}
+
+.landing-heading h2 {
+  font-size: 2em;
+  font-weight: 700;
+  color: #232b4e;
+  margin: 0 0 12px;
+}
+
+.landing-heading p {
+  font-size: 1.05em;
+  color: #737b99;
+  margin: 0 auto;
+  max-width: 620px;
+  line-height: 1.6;
+}
+
+/* ---- How it works: two workflows (students & companies) ---- */
+.how-it-works {
+  background-color: #ffffff;
+}
+
+.workflows-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.workflow-card {
+  background: #f8fafc;
+  border: 1px solid #e0e5ed;
+  border-radius: 14px;
+  padding: 32px 30px;
+  border-top: 4px solid #394fd9;
+}
+
+/* Distinct accent per audience, still consistent with the palette. */
+.workflow-company {
+  border-top-color: #2693ff;
+}
+
+.workflow-title {
+  font-size: 1.25em;
+  color: #232b4e;
+  margin: 0 0 20px;
+}
+
+.workflow-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.workflow-steps li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.98em;
+  color: #3a4265;
+}
+
+.workflow-step-num {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #394fd9;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workflow-company .workflow-step-num {
+  background: #2693ff;
+}
+
+/* ---- Call-to-action banners (Explore + Partner) ---- */
+.cta-banner {
+  background: linear-gradient(135deg, #232b4e 0%, #394fd9 100%);
+  border-radius: 16px;
+  padding: 56px 40px;
+  text-align: center;
+  color: #fff;
+}
+
+.cta-banner.partner {
+  background: #f8fafc;
+  color: #232b4e;
+  border: 1px solid #e0e5ed;
+}
+
+.cta-banner h2 {
+  font-size: 1.9em;
+  margin: 0 0 14px;
+  font-weight: 700;
+}
+
+.cta-banner p {
+  font-size: 1.05em;
+  margin: 0 auto 28px;
+  max-width: 560px;
+  line-height: 1.6;
+  opacity: 0.95;
+}
+
+.cta-banner.partner p {
+  color: #737b99;
+}
+
+.cta-button {
+  display: inline-block;
+  padding: 14px 30px;
+  border-radius: 6px;
+  font-size: 1em;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: #ffffff;
+  color: #394fd9;
+}
+
+.cta-button:hover {
+  background: #eef1ff;
+}
+
+.cta-banner.partner .cta-button {
+  background: #394fd9;
+  color: #fff;
+}
+
+.cta-banner.partner .cta-button:hover {
+  background: #2c3fb0;
+}
+
+/* Responsive */
+@media (max-width: 680px) {
+  .workflows-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .landing-section {
+    padding: 44px 0;
+  }
+  .cta-banner {
+    padding: 40px 24px;
+  }
+  .landing-heading h2,
+  .cta-banner h2 {
+    font-size: 1.6em;
+  }
+}

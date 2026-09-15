@@ -275,6 +275,7 @@ export class UserService {
 
   static async updateUser(userId: string, userData: Partial<{
     fullName: string;
+    phoneNumber: string;
     university: string;
     fieldOfStudy: string;
     skills: string[];
@@ -331,6 +332,7 @@ export class UserService {
           id: true,
           fullName: true,
           email: true,
+          phoneNumber: true,
           university: true,
           fieldOfStudy: true,
           skills: true,

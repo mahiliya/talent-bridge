@@ -66,7 +66,7 @@ function PostOpportunity() {
   // Company-only guard (backend also enforces this on every write).
   useEffect(() => {
     if (!token) {
-      navigate('/');
+      navigate('/login');
       return;
     }
     const verify = async () => {

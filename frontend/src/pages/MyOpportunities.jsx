@@ -25,7 +25,7 @@ function MyOpportunities() {
 
   useEffect(() => {
     if (!token) {
-      navigate('/');
+      navigate('/login');
       return;
     }
     const load = async () => {

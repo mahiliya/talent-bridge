@@ -6,7 +6,7 @@ import "./Header.css"
 import SignupModal from "./SignupModal"
 import LoginModal from "./LoginModal"
 import talentBridgeLogo from "../assets/talent-bridge-logo.svg"
-
+import { isAuthenticated, getRole, clearSession } from "../auth"
 
 function Header() {
   const [isSignupOpen, setIsSignupOpen] = useState(false)
@@ -14,40 +14,42 @@ function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
 
+  // Auth state is read at render. Login/Signup/Logout perform a full-page
+  // redirect, so this stays in sync without extra wiring.
+  const authed = isAuthenticated()
+  const role = getRole()
+  const isCompany = authed && role === "company"
+
   const openSignupModal = (e) => {
-    e.preventDefault()
+    if (e) e.preventDefault()
     setIsSignupOpen(true)
     setIsMobileMenuOpen(false)
   }
-
   const closeSignupModal = () => setIsSignupOpen(false)
 
   const openLoginModal = (e) => {
-    e.preventDefault()
+    if (e) e.preventDefault()
     setIsLoginOpen(true)
     setIsMobileMenuOpen(false)
   }
-
   const closeLoginModal = () => setIsLoginOpen(false)
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen)
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen)
+  const closeMenu = () => setIsMobileMenuOpen(false)
+
+  const handleLogout = () => {
+    clearSession()
+    setIsMobileMenuOpen(false)
+    window.location.href = "/"
   }
 
   // Handle scroll event to change header style when scrolled
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 10) {
-        setIsScrolled(true)
-      } else {
-        setIsScrolled(false)
-      }
+      setIsScrolled(window.scrollY > 10)
     }
-
     window.addEventListener("scroll", handleScroll)
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-    }
+    return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
   // Close mobile menu when window is resized to desktop size
@@ -57,11 +59,8 @@ function Header() {
         setIsMobileMenuOpen(false)
       }
     }
-
     window.addEventListener("resize", handleResize)
-    return () => {
-      window.removeEventListener("resize", handleResize)
-    }
+    return () => window.removeEventListener("resize", handleResize)
   }, [isMobileMenuOpen])
 
   return (
@@ -86,51 +85,95 @@ function Header() {
         <div className={`header-nav-container ${isMobileMenuOpen ? "is-open" : ""}`}>
           <nav className="header-nav">
             <ul className="header-nav-list">
-            <li className="header-nav-item">
-                <Link to="/" className="header-nav-link">
+              <li className="header-nav-item">
+                <Link to="/" className="header-nav-link" onClick={closeMenu}>
                   Home
                 </Link>
               </li>
-              <li className="header-nav-item">
-                <Link to="/internships" className="header-nav-link">
-                  Find Internships
-                </Link>
-              </li>
-              <li className="header-nav-item">
-                <Link to="/internships" className="header-nav-link">
-                  Browse Companies
-                </Link>
-              </li>
-              <li className="header-nav-item">
-                <Link to="/about" className="header-nav-link">
-                  About Us
-                </Link>
-              </li>
+
+              {/* Public visitor navigation */}
+              {!authed && (
+                <>
+                  <li className="header-nav-item">
+                    <a href="/#how-it-works" className="header-nav-link" onClick={closeMenu}>
+                      How It Works
+                    </a>
+                  </li>
+                  <li className="header-nav-item">
+                    {/* Company entry point — opens the company-preselected auth
+                        page (sign in or register). Never an internship list. */}
+                    <Link to="/login?type=company" className="header-nav-link" onClick={closeMenu}>
+                      Become a Partner
+                    </Link>
+                  </li>
+                </>
+              )}
+
+              {/* Authenticated USER navigation */}
+              {authed && !isCompany && (
+                <>
+                  <li className="header-nav-item">
+                    <Link to="/dashboard" className="header-nav-link" onClick={closeMenu}>Dashboard</Link>
+                  </li>
+                  <li className="header-nav-item">
+                    <Link to="/internships" className="header-nav-link" onClick={closeMenu}>Internships</Link>
+                  </li>
+                  <li className="header-nav-item">
+                    <a href="/dashboard#applications" className="header-nav-link" onClick={closeMenu}>Applications</a>
+                  </li>
+                  <li className="header-nav-item">
+                    <a href="/dashboard#profile" className="header-nav-link" onClick={closeMenu}>Profile</a>
+                  </li>
+                </>
+              )}
+
+              {/* Authenticated COMPANY navigation */}
+              {isCompany && (
+                <>
+                  <li className="header-nav-item">
+                    <Link to="/company/dashboard" className="header-nav-link" onClick={closeMenu}>Company Dashboard</Link>
+                  </li>
+                  <li className="header-nav-item">
+                    <Link to="/company/opportunities" className="header-nav-link" onClick={closeMenu}>Jobs</Link>
+                  </li>
+                  <li className="header-nav-item">
+                    <Link to="/company/post-opportunity" className="header-nav-link" onClick={closeMenu}>Post Opportunity</Link>
+                  </li>
+                </>
+              )}
             </ul>
           </nav>
 
           <div className="header-actions">
-            <a href="/login" className="header-login" onClick={openLoginModal}>
-              Login
-            </a>
-            <button className="header-signup" onClick={openSignupModal}>
-              Sign Up
-              <span className="btn-arrow">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
-              </span>
-            </button>
+            {authed ? (
+              <button className="header-login" onClick={handleLogout}>
+                Logout
+              </button>
+            ) : (
+              <>
+                <a href="/login" className="header-login" onClick={openLoginModal}>
+                  Sign In
+                </a>
+                <button className="header-signup" onClick={openSignupModal}>
+                  Sign Up
+                  <span className="btn-arrow">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                      <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                  </span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -142,4 +185,3 @@ function Header() {
 }
 
 export default Header
-

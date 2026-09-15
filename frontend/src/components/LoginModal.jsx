@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react"
 import "./LoginModal.css"
 
-function LoginModal({ isOpen, onClose }) {
+function LoginModal({ isOpen, onClose, redirectTo, defaultAccountType = "user" }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [accountType, setAccountType] = useState("user")
+  const [accountType, setAccountType] = useState(defaultAccountType)
   const [emailError, setEmailError] = useState("")
   const [passwordError, setPasswordError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -98,7 +98,11 @@ function LoginModal({ isOpen, onClose }) {
     const data = await response.json()
 
     if (!response.ok) {
-      setPasswordError(data.message || "Invalid email or password")
+      // Clear, friendly guidance — and never silently continue to a dashboard.
+      setPasswordError(
+        data.message ||
+          "Invalid email or password. Please sign in with your registered account, or create an account first."
+      )
       return
     }
 
@@ -124,8 +128,11 @@ function LoginModal({ isOpen, onClose }) {
     // Close the login modal
     onClose()
 
-    // Company accounts go to the Company Dashboard; users keep the existing flow.
-    window.location.href = accountType === "company" ? "/company/dashboard" : "/dashboard"
+    // Return the visitor to the protected page they were trying to reach
+    // (e.g. a gated internship or category page). With no pending destination,
+    // fall back to the role-appropriate dashboard.
+    const fallback = accountType === "company" ? "/company/dashboard" : "/dashboard"
+    window.location.href = redirectTo || fallback
 
   } catch (error) {
     console.error("Login error:", error)
@@ -260,7 +267,10 @@ function LoginModal({ isOpen, onClose }) {
         <div className="modal-footer">
           <p>
             Don't have an account?{" "}
-            <a href="/signup" className="signup-link">
+            <a
+              href={`/signup?type=${accountType}${redirectTo ? `&from=${encodeURIComponent(redirectTo)}` : ""}`}
+              className="signup-link"
+            >
               Sign up
             </a>
           </p>

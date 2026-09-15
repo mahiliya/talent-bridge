@@ -16,6 +16,7 @@ const APPLICANT_DETAIL_SELECT = {
   id: true,
   fullName: true,
   email: true,
+  phoneNumber: true,
   skills: true,
   university: true,
   fieldOfStudy: true,
@@ -211,6 +212,47 @@ export class ApplicationService {
         throw error;
       }
       throw new DatabaseError('An error occurred while retrieving the application details. Please try again later.');
+    }
+  }
+
+  // Return the raw stored resume value (a base64 data URL, or an external URL)
+  // for an application, enforcing the SAME authorization as getApplicationById:
+  // only the applicant, or the company that owns the job, may access it.
+  static async getApplicationResume(applicationId: string, entityId: string, entityType: 'user' | 'company') {
+    try {
+      const application = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: {
+          resumeUrl: true,
+          applicantId: true,
+          applicant: { select: { resume: true } },
+          job: { select: { company: { select: { id: true } } } },
+        },
+      });
+
+      if (!application) {
+        throw new ResourceNotFoundError(`Application with ID ${applicationId} not found.`);
+      }
+
+      if (
+        (entityType === 'user' && application.applicantId !== entityId) ||
+        (entityType === 'company' && application.job.company.id !== entityId)
+      ) {
+        throw new ForbiddenError('You do not have permission to view this resume.');
+      }
+
+      // Prefer the resume submitted with the application; fall back to the one
+      // on the applicant's profile.
+      const resume = application.resumeUrl || application.applicant.resume;
+      if (!resume) {
+        throw new ResourceNotFoundError('No resume is available for this application.');
+      }
+      return resume;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new DatabaseError('An error occurred while retrieving the resume. Please try again later.');
     }
   }
 

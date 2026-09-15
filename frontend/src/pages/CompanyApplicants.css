@@ -134,6 +134,8 @@
   border: 1px solid #e3c9b6;
   padding: 8px 14px;
   background: #fdf4ec;
+  cursor: pointer;
+  line-height: normal;
 }
 .doc-link:hover { background: #f8e8db; }
 
