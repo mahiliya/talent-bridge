@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { capitalizeUncontrolled } from '../utils/capitalize';
 import './UserDashboard.css';
 
 const API_URL = 'http://localhost:3000/api';
@@ -13,6 +14,32 @@ const humanizeStatus = (value) =>
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
+
+// Candidate-facing explanation for an application status. Mirrors the wording of
+// the server-generated notifications so the applications area and the
+// notification feed stay consistent.
+const statusMessage = (status, companyName, jobTitle) => {
+  const company = companyName || 'the company';
+  const role = jobTitle || 'this role';
+  switch (String(status || '').toUpperCase()) {
+    case 'ACCEPTED':
+      return `Congratulations! You've been accepted for ${role} at ${company}. The team will contact you via email. Thank you for applying.`;
+    case 'REJECTED':
+      return `Thank you for applying for ${role} at ${company}. Your application was not selected this time — we encourage you to explore and apply for other opportunities on Talent Bridge.`;
+    case 'SHORTLISTED':
+      return `You've been shortlisted for ${role} at ${company}. Your application is progressing to the next stage.`;
+    case 'INTERVIEW':
+      return `You've been invited to interview for ${role} at ${company}. The team will be in touch with the details.`;
+    case 'REVIEWED':
+      return `Your application for ${role} at ${company} is being reviewed.`;
+    default:
+      return `Your application for ${role} at ${company} has been received and is pending review.`;
+  }
+};
+
+// Statuses that still make sense to withdraw from (a decision hasn't closed the
+// application out).
+const WITHDRAWABLE_STATUSES = ['PENDING', 'REVIEWED', 'SHORTLISTED', 'INTERVIEW'];
 
 const PROFILE_FIELDS = [
   'fullName',
@@ -36,6 +63,7 @@ function UserDashboard() {
   const [user, setUser] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [resumeFile, setResumeFile] = useState(null);
@@ -72,9 +100,10 @@ function UserDashboard() {
 
         setUser(meData.user);
 
-        const [recommendationResponse, applicationResponse] = await Promise.all([
+        const [recommendationResponse, applicationResponse, notificationResponse] = await Promise.all([
           fetch(`${API_URL}/matches/recommendations/jobs/${meData.user.id}`, { headers }),
           fetch(`${API_URL}/applications/user/${meData.user.id}`, { headers }),
+          fetch(`${API_URL}/notifications/user/${meData.user.id}`, { headers }),
         ]);
 
         if (recommendationResponse.ok) {
@@ -82,6 +111,9 @@ function UserDashboard() {
         }
         if (applicationResponse.ok) {
           setApplications(await applicationResponse.json());
+        }
+        if (notificationResponse.ok) {
+          setNotifications(await notificationResponse.json());
         }
       } catch (loadError) {
         localStorage.removeItem('accessToken');
@@ -138,7 +170,15 @@ function UserDashboard() {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
+    profile.preferredIndustries = String(profile.preferredIndustries || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
     profile.remotePreference = profile.remotePreference || undefined;
+    // experienceLevel and minSalary are sent as-is; the backend validates the
+    // level against the ExperienceLevel enum and coerces the (numeric) salary.
+    profile.experienceLevel = profile.experienceLevel || '';
+    profile.minSalary = String(profile.minSalary ?? '').trim();
     delete profile.resumeFile;
 
     // Phone number is required so companies can contact accepted applicants.
@@ -228,6 +268,29 @@ function UserDashboard() {
     }
   };
 
+  const markNotificationRead = async (id) => {
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.isRead) return;
+    const response = await fetch(`${API_URL}/notifications/${id}/read`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    if (!user) return;
+    const response = await fetch(`${API_URL}/notifications/user/${user.id}/read-all`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
@@ -240,6 +303,7 @@ function UserDashboard() {
   }
 
   const profileIsComplete = isProfileComplete(user);
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <main className="dashboard-page">
@@ -250,6 +314,7 @@ function UserDashboard() {
           <a href="#overview" className="active">Dashboard</a>
           <Link to="/internships">Browse Opportunities</Link>
           <a href="#applications">My Applications</a>
+          <a href="#notifications">Notifications{unreadCount ? ` (${unreadCount})` : ''}</a>
           <a href="#profile">Profile</a>
           <a href="#recommendations">Recommendations</a>
         </nav>
@@ -351,29 +416,121 @@ function UserDashboard() {
           </div>
         </section>
 
+        <section className="dashboard-section" id="notifications">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Updates</p>
+              <h2>Notifications{unreadCount ? ` · ${unreadCount} new` : ''}</h2>
+            </div>
+            {unreadCount > 0 && (
+              <button type="button" className="text-link" onClick={markAllNotificationsRead}>
+                Mark all as read
+              </button>
+            )}
+          </div>
+          <div className="notification-list">
+            {notifications.length ? (
+              notifications.map((notification) => (
+                <article
+                  className={`notification-item ${notification.isRead ? '' : 'unread'}`}
+                  key={notification.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => markNotificationRead(notification.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      markNotificationRead(notification.id);
+                    }
+                  }}
+                >
+                  <div className="notification-body">
+                    <div className="notification-top">
+                      <h4>{notification.title}</h4>
+                      <span className="notification-date">
+                        {new Date(notification.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="notification-message">{notification.message}</p>
+                  </div>
+                  {!notification.isRead && <span className="notification-dot" aria-label="Unread" />}
+                </article>
+              ))
+            ) : (
+              <p className="empty-state">
+                You have no notifications yet. Updates about your applications will appear here.
+              </p>
+            )}
+          </div>
+        </section>
+
         <section className="dashboard-section" id="applications">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Your activity</p>
-              <h2>Recent applications</h2>
+              <h2>My applications</h2>
             </div>
           </div>
-          <div className="opportunity-list">
+          <div className="application-list">
             {applications.length ? (
-              applications.slice(0, 4).map((application) => (
-                <article className="opportunity" key={application.id}>
-                  <div>
-                    <h3>{application.job?.title || 'Application'}</h3>
-                    <p>
-                      {application.job?.company?.name || 'Company'} · {application.job?.jobType === 'INTERNSHIP' ? 'Internship' : 'Job'} · Applied {new Date(application.appliedAt).toLocaleDateString()}
+              applications.map((application) => {
+                const status = String(application.status || 'PENDING').toUpperCase();
+                const job = application.job || {};
+                const companyName = job.company?.name || 'Company';
+                const jobTitle = job.title || 'Application';
+                const jobMeta = [
+                  job.isInternship ? 'Internship' : job.jobType ? humanizeStatus(job.jobType) : null,
+                  job.location,
+                  job.workMode ? humanizeStatus(job.workMode) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
+                return (
+                  <article className="application-card" key={application.id}>
+                    <div className="application-head">
+                      <div>
+                        <h3>{jobTitle}</h3>
+                        <p>
+                          {companyName}
+                          {jobMeta ? ` · ${jobMeta}` : ''} · Applied{' '}
+                          {new Date(application.appliedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className={`status status-${status.toLowerCase()}`}>
+                        {humanizeStatus(status)}
+                      </span>
+                    </div>
+                    <p className={`application-message application-message-${status.toLowerCase()}`}>
+                      {statusMessage(status, companyName, jobTitle)}
                     </p>
-                  </div>
-                  <span className={`status status-${String(application.status || 'PENDING').toLowerCase()}`}>
-                    {humanizeStatus(application.status)}
-                  </span>
-                  <button type="button" className="text-link" onClick={() => withdrawApplication(application.id)}>Withdraw</button>
-                </article>
-              ))
+                    {application.notes && (
+                      <p className="application-note">
+                        <strong>Message from {companyName}:</strong> {application.notes}
+                      </p>
+                    )}
+                    <div className="application-actions">
+                      {job.id && (
+                        <button
+                          type="button"
+                          className="text-link"
+                          onClick={() => navigate(`/internships/${job.id}`)}
+                        >
+                          View job details
+                        </button>
+                      )}
+                      {WITHDRAWABLE_STATUSES.includes(status) && (
+                        <button
+                          type="button"
+                          className="text-link"
+                          onClick={() => withdrawApplication(application.id)}
+                        >
+                          Withdraw
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
             ) : (
               <p className="empty-state">Your applications will appear here after you apply.</p>
             )}
@@ -399,7 +556,7 @@ function UserDashboard() {
             <form className="profile-form" onSubmit={updateProfile}>
               <label>
                 Full name
-                <input name="fullName" defaultValue={user.fullName || ''} required />
+                <input name="fullName" defaultValue={user.fullName || ''} onChange={capitalizeUncontrolled} required />
               </label>
               <label>
                 Email
@@ -421,19 +578,34 @@ function UserDashboard() {
               </label>
               <label>
                 University
-                <input name="university" defaultValue={user.university || ''} />
+                <input name="university" defaultValue={user.university || ''} onChange={capitalizeUncontrolled} />
               </label>
               <label>
                 Field of study
-                <input name="fieldOfStudy" defaultValue={user.fieldOfStudy || ''} />
+                <input name="fieldOfStudy" defaultValue={user.fieldOfStudy || ''} onChange={capitalizeUncontrolled} />
               </label>
               <label>
                 Skills
                 <small>Separate with commas</small>
-                <input name="skills" defaultValue={user.skills?.join(', ') || ''} />
+                <input name="skills" defaultValue={user.skills?.join(', ') || ''} onChange={capitalizeUncontrolled} />
+              </label>
+              <h3 className="form-section-title">Job Preferences</h3>
+              <p className="form-section-note">
+                These guide the opportunities we recommend to you.
+              </p>
+              <label>
+                Experience / job level
+                <select name="experienceLevel" defaultValue={user.experienceLevel || ''}>
+                  <option value="">Choose one</option>
+                  <option value="ENTRY">Entry</option>
+                  <option value="JUNIOR">Junior</option>
+                  <option value="MID">Mid</option>
+                  <option value="SENIOR">Senior</option>
+                  <option value="LEAD">Lead</option>
+                </select>
               </label>
               <fieldset>
-                <legend>Job types</legend>
+                <legend>Preferred job types</legend>
                 {['INTERNSHIP', 'FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE'].map((type) => (
                   <label key={type} className="checkbox-option">
                     <input name="preferredJobType" type="checkbox" value={type} defaultChecked={user.preferredJobTypes?.includes(type)} />
@@ -442,7 +614,7 @@ function UserDashboard() {
                 ))}
               </fieldset>
               <label>
-                Remote preference
+                Work mode preference
                 <select name="remotePreference" defaultValue={user.remotePreference || ''}>
                   <option value="">Choose one</option>
                   <option value="ON_SITE">On site</option>
@@ -454,7 +626,24 @@ function UserDashboard() {
               <label>
                 Preferred locations
                 <small>Comma-separated</small>
-                <input name="preferredLocations" defaultValue={user.preferredLocations?.join(', ') || ''} />
+                <input name="preferredLocations" defaultValue={user.preferredLocations?.join(', ') || ''} onChange={capitalizeUncontrolled} />
+              </label>
+              <label>
+                Preferred industries / field
+                <small>Comma-separated</small>
+                <input name="preferredIndustries" defaultValue={user.preferredIndustries?.join(', ') || ''} onChange={capitalizeUncontrolled} />
+              </label>
+              <label>
+                Minimum salary
+                <small>Optional — numbers only</small>
+                <input
+                  name="minSalary"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  defaultValue={user.minSalary ?? ''}
+                  placeholder="e.g. 50000"
+                />
               </label>
               <label>
                 Resume (PDF)

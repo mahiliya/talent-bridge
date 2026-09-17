@@ -25,6 +25,7 @@ function CompanyDashboard() {
   const [company, setCompany] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState('');
   // The sidebar can request a placeholder section via navigation state.
   const [activeSection, setActiveSection] = useState(location.state?.section || 'dashboard');
@@ -63,11 +64,12 @@ function CompanyDashboard() {
 
         setCompany(meData.company);
 
-        // Both endpoints are company-authenticated and scoped to the logged-in
-        // company, so the data returned belongs only to this company.
-        const [jobsResponse, applicationsResponse] = await Promise.all([
+        // All three endpoints are company-authenticated and scoped to the
+        // logged-in company, so the data returned belongs only to this company.
+        const [jobsResponse, applicationsResponse, notificationsResponse] = await Promise.all([
           fetch(`${API_URL}/jobs/mine`, { headers }),
           fetch(`${API_URL}/applications/company/${meData.company.id}`, { headers }),
+          fetch(`${API_URL}/notifications/company/${meData.company.id}`, { headers }),
         ]);
 
         if (jobsResponse.ok) {
@@ -75,6 +77,9 @@ function CompanyDashboard() {
         }
         if (applicationsResponse.ok) {
           setApplications(await applicationsResponse.json());
+        }
+        if (notificationsResponse.ok) {
+          setNotifications(await notificationsResponse.json());
         }
       } catch (loadError) {
         setError(loadError.message);
@@ -97,6 +102,30 @@ function CompanyDashboard() {
   const recentApplications = applications.slice(0, 5);
   // Currently live opportunities (published + active), most recent first.
   const activeJobs = jobs.filter((job) => job.isActive && !job.isDraft);
+  const unreadNotifications = notifications.filter((n) => !n.isRead).length;
+
+  const markNotificationRead = async (id) => {
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.isRead) return;
+    const response = await fetch(`${API_URL}/notifications/${id}/read`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    if (!company) return;
+    const response = await fetch(`${API_URL}/notifications/company/${company.id}/read-all`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    }
+  };
 
   if (!company) {
     return (
@@ -196,6 +225,54 @@ function CompanyDashboard() {
         </div>
       </section>
 
+      <section className="dashboard-section" id="notifications">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Updates</p>
+            <h2>Notifications{unreadNotifications ? ` · ${unreadNotifications} new` : ''}</h2>
+          </div>
+          {unreadNotifications > 0 && (
+            <button type="button" className="text-link" onClick={markAllNotificationsRead}>
+              Mark all as read
+            </button>
+          )}
+        </div>
+        <div className="notification-list">
+          {notifications.length ? (
+            notifications.slice(0, 5).map((notification) => (
+              <article
+                className={`notification-item ${notification.isRead ? '' : 'unread'}`}
+                key={notification.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => markNotificationRead(notification.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    markNotificationRead(notification.id);
+                  }
+                }}
+              >
+                <div className="notification-body">
+                  <div className="notification-top">
+                    <h4>{notification.title}</h4>
+                    <span className="notification-date">
+                      {new Date(notification.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="notification-message">{notification.message}</p>
+                </div>
+                {!notification.isRead && <span className="notification-dot" aria-label="Unread" />}
+              </article>
+            ))
+          ) : (
+            <p className="empty-state">
+              When a candidate applies to one of your opportunities, you'll be notified here.
+            </p>
+          )}
+        </div>
+      </section>
+
       <section className="dashboard-section" id="active-opportunities">
         <div className="section-heading">
           <div>
@@ -249,6 +326,62 @@ function CompanyDashboard() {
     </>
   );
 
+  const renderNotificationItems = () => (
+    <div className="notification-list">
+      {notifications.length ? (
+        notifications.map((notification) => (
+          <article
+            className={`notification-item ${notification.isRead ? '' : 'unread'}`}
+            key={notification.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => markNotificationRead(notification.id)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                markNotificationRead(notification.id);
+              }
+            }}
+          >
+            <div className="notification-body">
+              <div className="notification-top">
+                <h4>{notification.title}</h4>
+                <span className="notification-date">
+                  {new Date(notification.createdAt).toLocaleString()}
+                </span>
+              </div>
+              <p className="notification-message">{notification.message}</p>
+            </div>
+            {!notification.isRead && <span className="notification-dot" aria-label="Unread" />}
+          </article>
+        ))
+      ) : (
+        <p className="empty-state">
+          No notifications yet. When a candidate applies to one of your opportunities, it will appear here.
+        </p>
+      )}
+    </div>
+  );
+
+  const renderNotifications = () => (
+    <>
+      <header className="dashboard-header">
+        <div>
+          <p className="eyebrow">Company workspace</p>
+          <h1>Notifications{unreadNotifications ? ` · ${unreadNotifications} new` : ''}</h1>
+          <p>New applications to your opportunities show up here.</p>
+        </div>
+        {unreadNotifications > 0 && (
+          <button type="button" className="primary-action" onClick={markAllNotificationsRead}>
+            Mark all as read
+          </button>
+        )}
+      </header>
+      {error && <p className="dashboard-error">{error}</p>}
+      <section className="dashboard-section">{renderNotificationItems()}</section>
+    </>
+  );
+
   const renderPlaceholder = (title) => (
     <>
       <header className="dashboard-header">
@@ -273,7 +406,11 @@ function CompanyDashboard() {
       <CompanySidebar active={activeSection} />
 
       <section className="dashboard-content">
-        {activeSection === 'dashboard' ? renderDashboard() : renderPlaceholder(activeLabel)}
+        {activeSection === 'dashboard'
+          ? renderDashboard()
+          : activeSection === 'notifications'
+            ? renderNotifications()
+            : renderPlaceholder(activeLabel)}
       </section>
     </main>
   );

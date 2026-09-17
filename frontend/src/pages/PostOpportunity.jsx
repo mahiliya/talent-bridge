@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CompanySidebar from '../components/CompanySidebar';
+import { capitalizeFirst } from '../utils/capitalize';
 import './UserDashboard.css';
 import './CompanyDashboard.css';
 import './PostOpportunity.css';
@@ -307,13 +308,13 @@ function PostOpportunity() {
               <div className="post-grid">
                 <label className="post-field">
                   <span className="post-label">Title <b className="req">*</b></span>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Frontend Developer Intern" />
+                  <input value={title} onChange={(e) => setTitle(capitalizeFirst(e.target.value))} placeholder="e.g. Frontend Developer Intern" />
                   {errors.title && <span className="post-error">{errors.title}</span>}
                 </label>
 
                 <label className="post-field">
                   <span className="post-label">Category <b className="req">*</b></span>
-                  <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Software Engineering" />
+                  <input value={category} onChange={(e) => setCategory(capitalizeFirst(e.target.value))} placeholder="e.g. Software Engineering" />
                   {errors.category && <span className="post-error">{errors.category}</span>}
                 </label>
               </div>
@@ -323,7 +324,7 @@ function PostOpportunity() {
                 <textarea
                   rows={5}
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => setDescription(capitalizeFirst(e.target.value))}
                   placeholder="Describe the role, responsibilities, and what a great candidate looks like."
                 />
                 {errors.description && <span className="post-error">{errors.description}</span>}
@@ -337,7 +338,7 @@ function PostOpportunity() {
                 <span className="post-label">Required Skills <b className="req">*</b></span>
                 <input
                   value={requiredSkills}
-                  onChange={(e) => setRequiredSkills(e.target.value)}
+                  onChange={(e) => setRequiredSkills(capitalizeFirst(e.target.value))}
                   placeholder="Comma-separated, e.g. React, JavaScript, CSS"
                 />
                 <small className="post-hint">Separate skills with commas. These power candidate matching.</small>
@@ -379,7 +380,7 @@ function PostOpportunity() {
               <div className="post-grid">
                 <label className="post-field">
                   <span className="post-label">Location <b className="req">*</b></span>
-                  <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Addis Ababa" />
+                  <input value={location} onChange={(e) => setLocation(capitalizeFirst(e.target.value))} placeholder="e.g. Addis Ababa" />
                   {errors.location && <span className="post-error">{errors.location}</span>}
                 </label>
 
@@ -404,7 +405,7 @@ function PostOpportunity() {
                   <span className="post-label">Internship Duration <b className="req">*</b></span>
                   <input
                     value={internshipDuration}
-                    onChange={(e) => setInternshipDuration(e.target.value)}
+                    onChange={(e) => setInternshipDuration(capitalizeFirst(e.target.value))}
                     placeholder="e.g. 3 months"
                   />
                   {errors.internshipDuration && <span className="post-error">{errors.internshipDuration}</span>}

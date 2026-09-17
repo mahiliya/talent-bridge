@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CompanySidebar from '../components/CompanySidebar';
+import { capitalizeFirst } from '../utils/capitalize';
 import './UserDashboard.css';
 import './CompanyDashboard.css';
 import './CompanyApplicants.css';
@@ -39,6 +40,11 @@ function ApplicationDetails() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  // The explanation/message the company sends to the applicant with a decision.
+  // Prefilled with any previously saved message so it can be reviewed/edited.
+  const [reason, setReason] = useState('');
+
+  const MAX_REASON = 1000;
 
   const token = localStorage.getItem('accessToken');
 
@@ -63,6 +69,7 @@ function ApplicationDetails() {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || 'Unable to load this application.');
         setApplication(body);
+        setReason(body.notes || '');
       } catch (err) {
         setError(err.message);
       }
@@ -108,20 +115,35 @@ function ApplicationDetails() {
   };
 
   const updateStatus = async (status) => {
-    setSaving(true);
     setNotice('');
     setError('');
+
+    // Require a short explanation so the applicant always receives a reason with
+    // their decision. Trimmed and length-checked before we hit the API (the
+    // backend enforces the same limit).
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      setError('Please add a reason / message to the applicant before updating the status.');
+      return;
+    }
+    if (trimmedReason.length > MAX_REASON) {
+      setError(`The message must be ${MAX_REASON} characters or fewer.`);
+      return;
+    }
+
+    setSaving(true);
     try {
       const res = await fetch(`${API_URL}/applications/${applicationId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, reason: trimmedReason }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Could not update the status.');
-      // Reflect the persisted status immediately.
-      setApplication((prev) => ({ ...prev, status: body.status || status }));
-      setNotice(`Status updated to ${humanize(body.status || status)}.`);
+      // Reflect the persisted status + saved message immediately.
+      setApplication((prev) => ({ ...prev, status: body.status || status, notes: body.notes ?? trimmedReason }));
+      setReason(body.notes ?? trimmedReason);
+      setNotice(`Status updated to ${humanize(body.status || status)}. The applicant has been notified.`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -293,19 +315,32 @@ function ApplicationDetails() {
               <h2>Application Actions</h2>
             </div>
           </div>
-          <div className="decision-bar">
-            {ACTIONS.filter((action) => action.status !== application.status).map((action) => (
-              <button
-                key={action.status}
-                type="button"
-                className={`decision-btn decision-${action.status.toLowerCase()}`}
-                disabled={saving}
-                onClick={() => updateStatus(action.status)}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
+          <article className="dashboard-panel">
+            <label className="reason-field">
+              Reason / Message to Applicant
+              <textarea
+                value={reason}
+                onChange={(event) => setReason(capitalizeFirst(event.target.value.slice(0, MAX_REASON)))}
+                maxLength={MAX_REASON}
+                rows={4}
+                placeholder="Share a short, professional message the applicant will see with this decision (e.g. why they were shortlisted, next steps, or feedback)."
+              />
+              <small>{reason.length}/{MAX_REASON} · Sent to the applicant with the status update.</small>
+            </label>
+            <div className="decision-bar">
+              {ACTIONS.filter((action) => action.status !== application.status).map((action) => (
+                <button
+                  key={action.status}
+                  type="button"
+                  className={`decision-btn decision-${action.status.toLowerCase()}`}
+                  disabled={saving}
+                  onClick={() => updateStatus(action.status)}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </article>
         </section>
       </section>
     </main>

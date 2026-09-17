@@ -7,20 +7,14 @@ export class NotificationService {
   // Create a new notification
   async createNotification(data: CreateNotificationDto): Promise<Notification> {
     return prisma.notification.create({
-      data,
-      include: {
-        user: true
-      }
+      data
     });
   }
 
   // Get notification by ID
   async getNotificationById(id: string): Promise<Notification | null> {
     return prisma.notification.findUnique({
-      where: { id },
-      include: {
-        user: true
-      }
+      where: { id }
     });
   }
 
@@ -28,10 +22,7 @@ export class NotificationService {
   async updateNotification(id: string, data: UpdateNotificationDto): Promise<Notification> {
     return prisma.notification.update({
       where: { id },
-      data,
-      include: {
-        user: true
-      }
+      data
     });
   }
 
@@ -54,6 +45,36 @@ export class NotificationService {
     });
   }
 
+  // Get all notifications for a company
+  async getCompanyNotifications(companyId: string): Promise<Notification[]> {
+    return prisma.notification.findMany({
+      where: {
+        companyId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  }
+
+  // Notification count for a company (total + unread)
+  async getCompanyNotificationCount(companyId: string): Promise<{ total: number; unread: number }> {
+    const [total, unread] = await Promise.all([
+      prisma.notification.count({ where: { companyId } }),
+      prisma.notification.count({ where: { companyId, isRead: false } }),
+    ]);
+    return { total, unread };
+  }
+
+  // Mark all of a company's notifications as read
+  async markAllCompanyAsRead(companyId: string): Promise<{ count: number }> {
+    const result = await prisma.notification.updateMany({
+      where: { companyId, isRead: false },
+      data: { isRead: true },
+    });
+    return { count: result.count };
+  }
+
   // Get unread notifications for a user
   async getUnreadNotifications(userId: string): Promise<Notification[]> {
     return prisma.notification.findMany({
@@ -71,10 +92,7 @@ export class NotificationService {
   async markAsRead(id: string): Promise<Notification> {
     return prisma.notification.update({
       where: { id },
-      data: { isRead: true },
-      include: {
-        user: true
-      }
+      data: { isRead: true }
     });
   }
 
@@ -132,7 +150,9 @@ export class NotificationService {
     });
   }
 
-  // Create application status notification
+  // Create application status notification (basic; kept for the standalone
+  // /application-status endpoint). The richer, job/company-aware variant used by
+  // the real status-change flow is createApplicationDecisionNotification below.
   async createApplicationStatusNotification(
     userId: string,
     status: string
@@ -169,6 +189,76 @@ export class NotificationService {
       title,
       message,
       isRead: false
+    });
+  }
+
+  // Rich candidate notification for a real decision (shortlist / accept / reject
+  // / interview). Includes the job, the company, an optional company message, and
+  // a link to the applicant's dashboard applications area. Called from the
+  // application status-change flow when a company updates an application.
+  async createApplicationDecisionNotification(params: {
+    userId: string;
+    status: string;
+    jobTitle: string;
+    companyName: string;
+    reason?: string | null;
+  }): Promise<Notification> {
+    const { userId, status, jobTitle, companyName, reason } = params;
+
+    let title: string;
+    let message: string;
+    switch (status) {
+      case 'SHORTLISTED':
+        title = `You've been shortlisted — ${jobTitle}`;
+        message = `Your application for ${jobTitle} at ${companyName} has been shortlisted. Your application is progressing to the next stage.`;
+        break;
+      case 'ACCEPTED':
+        title = `Application accepted — ${jobTitle}`;
+        message = `Congratulations! Your application for ${jobTitle} at ${companyName} has been accepted. The team will contact you via email. Thank you for applying.`;
+        break;
+      case 'REJECTED':
+        title = `Application update — ${jobTitle}`;
+        message = `Thank you for applying for ${jobTitle} at ${companyName}. Unfortunately, your application was not selected this time. We encourage you to explore and apply for other opportunities on Talent Bridge.`;
+        break;
+      case 'INTERVIEW':
+        title = `Interview invitation — ${jobTitle}`;
+        message = `You have been invited to interview for ${jobTitle} at ${companyName}. The team will be in touch with the details.`;
+        break;
+      default:
+        title = `Application update — ${jobTitle}`;
+        message = `Your application for ${jobTitle} at ${companyName} has an update.`;
+    }
+
+    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+    if (trimmedReason) {
+      message += `\n\nMessage from ${companyName}: "${trimmedReason}"`;
+    }
+
+    return this.createNotification({
+      userId,
+      type: NotificationType.APPLICATION_UPDATE,
+      title,
+      message,
+      isRead: false,
+      link: '/dashboard#applications',
+    });
+  }
+
+  // Company notification for a newly received application. Belongs to the
+  // company that owns the job (companyId), never to a user.
+  async createNewApplicationNotification(params: {
+    companyId: string;
+    applicantName: string;
+    jobTitle: string;
+  }): Promise<Notification> {
+    const { companyId, applicantName, jobTitle } = params;
+    return this.createNotification({
+      companyId,
+      type: NotificationType.APPLICATION_UPDATE,
+      title: `New applicant — ${jobTitle}`,
+      message: `${applicantName} applied for ${jobTitle}. Open the opportunity to review the application.`,
+      isRead: false,
+      link: '/company/dashboard',
     });
   }
 } 

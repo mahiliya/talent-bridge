@@ -1,4 +1,4 @@
-import { PrismaClient, User, JobType, RemotePreference } from '@prisma/client';
+import { PrismaClient, User, JobType, RemotePreference, ExperienceLevel } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UpdateUserDto } from '../types/user.types';
 import { 
@@ -15,6 +15,7 @@ import {
   validatePassword
 } from '../utils/validation'; 
 import { AppError } from '../utils/errorHandler';
+import { USER_LIST_SELECT } from '../utils/safeSelect';
 
 const prisma = new PrismaClient();
 
@@ -78,14 +79,15 @@ export class UserService {
     });
   }
 
-  // Get all students
-  async getAllStudents(): Promise<User[]> {
+  // Get all students (password-free projection)
+  async getAllStudents() {
     try {
       console.log('Attempting to fetch all students from database...');
       const students = await prisma.user.findMany({
         where: {
           isStudent: true,
         },
+        select: USER_LIST_SELECT,
       });
       console.log(`Successfully fetched ${students.length} students from database`);
       return students;
@@ -99,14 +101,15 @@ export class UserService {
     }
   }
 
-  // Get all graduates
-  async getAllGraduates(): Promise<User[]> {
+  // Get all graduates (password-free projection)
+  async getAllGraduates() {
     try {
       console.log('Attempting to fetch all graduates from database...');
       const graduates = await prisma.user.findMany({
         where: {
           isGraduate: true,
         },
+        select: USER_LIST_SELECT,
       });
       console.log(`Successfully fetched ${graduates.length} graduates from database`);
       return graduates;
@@ -137,6 +140,7 @@ export class UserService {
       preferredLocations?: string[];
       minSalary?: number;
       remotePreference?: RemotePreference;
+      experienceLevel?: ExperienceLevel;
     }
   ): Promise<User> {
     return prisma.user.update({
@@ -255,6 +259,7 @@ export class UserService {
           preferredIndustries: true,
           minSalary: true,
           remotePreference: true,
+          experienceLevel: true,
           createdAt: true,
           updatedAt: true
         }
@@ -283,8 +288,9 @@ export class UserService {
     preferredJobTypes: JobType[];
     preferredLocations: string[];
     preferredIndustries: string[];
-    minSalary: number;
+    minSalary: number | string;
     remotePreference: RemotePreference;
+    experienceLevel: ExperienceLevel | string;
   }>) {
     try {
       // Check if user exists
@@ -319,13 +325,50 @@ export class UserService {
         throw new ValidationError(`Unsupported remote preference "${remotePreference}". Use ON_SITE, REMOTE, HYBRID, or FLEXIBLE.`);
       }
 
-      // Update user
+      // Coerce/validate the minimum salary. It arrives from a form field as a
+      // string; an empty value clears the preference (null), anything else must
+      // be a non-negative number. Left undefined when the field is not submitted
+      // so the stored value is untouched.
+      let minSalary: number | null | undefined;
+      if (userData.minSalary !== undefined) {
+        const rawSalary = String(userData.minSalary).trim();
+        if (rawSalary === '') {
+          minSalary = null;
+        } else {
+          const parsedSalary = Number(rawSalary);
+          if (!Number.isFinite(parsedSalary) || parsedSalary < 0) {
+            throw new ValidationError('Minimum salary must be a non-negative number.');
+          }
+          minSalary = parsedSalary;
+        }
+      }
+
+      // Validate the candidate's experience/job level against the schema enum.
+      // Empty clears it; an unsupported value is rejected.
+      let experienceLevel: ExperienceLevel | null | undefined;
+      if (userData.experienceLevel !== undefined) {
+        const rawLevel = String(userData.experienceLevel).trim().toUpperCase();
+        if (rawLevel === '') {
+          experienceLevel = null;
+        } else if (!Object.values(ExperienceLevel).includes(rawLevel as ExperienceLevel)) {
+          throw new ValidationError(
+            `Unsupported experience level "${userData.experienceLevel}". Use ENTRY, JUNIOR, MID, SENIOR, or LEAD.`
+          );
+        } else {
+          experienceLevel = rawLevel as ExperienceLevel;
+        }
+      }
+
+      // Update user. Explicit, validated values override the raw spread so a
+      // string salary/level can never reach Prisma.
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
           ...userData,
           preferredJobTypes: normalizedJobTypes as JobType[],
           remotePreference: remotePreference as RemotePreference | undefined,
+          minSalary,
+          experienceLevel,
           fullName: userData.fullName, // Ensure fullName is included if provided
         },
         select: {
@@ -343,6 +386,7 @@ export class UserService {
           preferredIndustries: true,
           minSalary: true,
           remotePreference: true,
+          experienceLevel: true,
           createdAt: true,
           updatedAt: true
         }

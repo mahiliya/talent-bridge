@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { capitalizeFirst } from '../utils/capitalize';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -173,7 +174,7 @@ function JobExplorer({ user, applications, onApplicationsChange }) {
               <form onSubmit={submitApplication}>
                 <label>
                   Cover letter
-                  <textarea value={coverLetter} onChange={(event) => setCoverLetter(event.target.value)} maxLength="1000" required />
+                  <textarea value={coverLetter} onChange={(event) => setCoverLetter(capitalizeFirst(event.target.value))} maxLength="1000" required />
                 </label>
                 <label>
                   PDF resume

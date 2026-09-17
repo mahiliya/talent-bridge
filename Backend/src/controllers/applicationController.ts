@@ -167,17 +167,21 @@ export class ApplicationController {
       if (!companyId) {
         return res.status(400).json({ error: 'Company ID is required' });
       }
-      const { status } = req.body;
+      const { status, reason } = req.body;
       if (!status || !Object.values(ApplicationStatus).includes(status)) {
         return res.status(400).json({
           error: `Invalid application status. Allowed: ${Object.values(ApplicationStatus).join(', ')}.`,
         });
       }
+      if (reason !== undefined && typeof reason !== 'string') {
+        return res.status(400).json({ error: 'The message to the applicant must be text.' });
+      }
 
       const application = await ApplicationService.updateApplicationStatus(
         String(id),
         companyId.toString(),
-        status
+        status,
+        reason
       );
       return res.json(application);
     } catch (error) {
@@ -185,6 +189,8 @@ export class ApplicationController {
         return res.status(404).json({ error: error.message });
       } else if (error instanceof ForbiddenError) {
         return res.status(403).json({ error: error.message });
+      } else if (error instanceof ValidationError) {
+        return res.status(400).json({ error: error.message });
       } else {
         return res.status(500).json({ error: 'An unexpected error occurred' });
       }
@@ -234,38 +240,48 @@ export class ApplicationController {
     }
   };
 
-  // Get company applications
-  getCompanyApplications = async (req: Request, res: Response) => {
+  // Get company applications (owner only)
+  getCompanyApplications = async (req: AuthenticatedRequest, res: Response) => {
+    const { companyId } = req.params;
+    if (!req.company || req.company.id !== String(companyId)) {
+      return res.status(403).json({ error: 'You can only access your own company applications.' });
+    }
     try {
-      const { companyId } = req.params;
-     const applications = await this.applicationService.getCompanyApplications(String(companyId)
-    );
-
-    res.json(applications);
+      const applications = await this.applicationService.getCompanyApplications(String(companyId));
+      return res.json(applications);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
-  // Get applications by status
-  getApplicationsByStatus = async (req: Request, res: Response) => {
+  // Get applications by status — scoped to the authenticated company's own jobs
+  // (using the password-free company-scoped query).
+  getApplicationsByStatus = async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.company) {
+      return res.status(403).json({ error: 'Company authentication required.' });
+    }
     try {
       const { status } = req.params;
-      const applications = await this.applicationService.getApplicationsByStatus(status as any);
-      res.json(applications);
+      const applications = await ApplicationService.getApplications('company', req.company.id, {
+        status: status as any,
+      });
+      return res.json(applications);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
-  // Get application statistics
-  getApplicationStatistics = async (req: Request, res: Response) => {
+  // Get application statistics (owner only)
+  getApplicationStatistics = async (req: AuthenticatedRequest, res: Response) => {
+    const { companyId } = req.params;
+    if (!req.company || req.company.id !== String(companyId)) {
+      return res.status(403).json({ error: 'You can only access your own company statistics.' });
+    }
     try {
-      const { companyId } = req.params;
       const statistics = await this.applicationService.getApplicationStatistics(String(companyId));
-      res.json(statistics);
+      return res.json(statistics);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 } 

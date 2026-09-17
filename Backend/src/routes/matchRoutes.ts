@@ -1,44 +1,44 @@
 import { Router } from 'express';
 import { MatchController } from '../controllers/matchController';
-import { authenticateCompany, authenticateUser } from '../middleware/auth';
+import { authenticate, authenticateCompany, authenticateUser } from '../middleware/auth';
 
 const router = Router();
 const matchController = new MatchController();
 
-// Create a match
-router.post('/', matchController.createMatch);
+// Create a match (User only; controller enforces body.userId === self)
+router.post('/', authenticateUser, matchController.createMatch);
 
-// Get user matches
+// Get user matches (User only; own account)
 router.get('/user/:userId', authenticateUser, matchController.getUserMatches);
 
-// Get job matches
-router.get('/job/:jobId', matchController.getJobMatches);
+// Get job matches (Company only; controller enforces job ownership)
+router.get('/job/:jobId', authenticateCompany, matchController.getJobMatches);
 
-// Get company matches
-router.get('/company/:companyId', matchController.getCompanyMatches);
+// Get company matches (Company only; own company)
+router.get('/company/:companyId', authenticateCompany, matchController.getCompanyMatches);
 
-// Get top matches for user
+// Get top matches for user (User only; own account)
 router.get('/user/:userId/top', authenticateUser, matchController.getTopMatchesForUser);
 
-// Get top matches for job
-router.get('/job/:jobId/top', matchController.getTopMatchesForJob);
+// Get top matches for job (Company only; controller enforces job ownership)
+router.get('/job/:jobId/top', authenticateCompany, matchController.getTopMatchesForJob);
 
-// Calculate match score
-router.get('/score/:userId/:jobId', matchController.calculateMatchScore);
+// Calculate match score (User only; own account)
+router.get('/score/:userId/:jobId', authenticateUser, matchController.calculateMatchScore);
 
-// Get job recommendations for user
+// Get job recommendations for user (User only; own account)
 router.get('/recommendations/jobs/:userId', authenticateUser, matchController.getJobRecommendations);
 
-// Get candidate recommendations for job
+// Get candidate recommendations for job (Company only; own company — IDOR-safe)
 router.get('/recommendations/candidates/:jobId/:companyId', authenticateCompany, matchController.getCandidateRecommendations);
 
-// Get match by ID
-router.get('/:id', matchController.getMatchById);
+// Get match by ID (authenticated; controller enforces match ownership)
+router.get('/:id', authenticate, matchController.getMatchById);
 
-// Update match score
-router.patch('/:id/score', matchController.updateMatchScore);
+// Update match score (authenticated; controller enforces match ownership)
+router.patch('/:id/score', authenticate, matchController.updateMatchScore);
 
-// Delete match
-router.delete('/:id', matchController.deleteMatch);
+// Delete match (authenticated; controller enforces match ownership)
+router.delete('/:id', authenticate, matchController.deleteMatch);
 
 export default router;

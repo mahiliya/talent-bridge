@@ -1,43 +1,29 @@
 import { Router } from 'express';
 import { CompanyController } from '../controllers/companyController';
+import { authenticate, authenticateCompany } from '../middleware/auth';
 
 const router = Router();
 const companyController = new CompanyController();
 
-// Register a new company
+// Register a new company (PUBLIC — the only unauthenticated company endpoint).
 router.post('/register', companyController.register);
 
-// Create a new company
-router.post('/', companyController.createCompany);
+// Create a new company (company session required; registration is the public path).
+router.post('/', authenticateCompany, companyController.createCompany);
 
-// Get all companies
-router.get('/', companyController.getAllCompanies);
+// Directory reads: authentication required (no anonymous access), and the
+// service now returns password-free company records.
+router.get('/', authenticate, companyController.getAllCompanies);
+router.get('/name/:name', authenticate, companyController.getCompanyByName);
+router.get('/size/:size', authenticate, companyController.getCompaniesBySize);
+router.get('/industry/:industry', authenticate, companyController.getCompaniesByIndustry);
+router.get('/:id/jobs', authenticate, companyController.getCompanyJobs);
+router.get('/:id/active-jobs', authenticate, companyController.getCompanyActiveJobs);
 
-// Get company by name
-router.get('/name/:name', companyController.getCompanyByName);
-
-// Get companies by size
-router.get('/size/:size', companyController.getCompaniesBySize);
-
-// Get companies by industry
-router.get('/industry/:industry', companyController.getCompaniesByIndustry);
-
-// Get company's jobs
-router.get('/:id/jobs', companyController.getCompanyJobs);
-
-// Get company's active jobs
-router.get('/:id/active-jobs', companyController.getCompanyActiveJobs);
-
-// Get company's job applications
-router.get('/:id/applications', companyController.getCompanyJobApplications);
-
-// Update company logo
-router.put('/:id/logo', companyController.updateCompanyLogo);
-
-// Update company profile
-router.put('/:id', companyController.updateCompany);
-
-// Delete company
-router.delete('/:id', companyController.deleteCompany);
+// Private company operations: company session + ownership (enforced in controller).
+router.get('/:id/applications', authenticateCompany, companyController.getCompanyJobApplications);
+router.put('/:id/logo', authenticateCompany, companyController.updateCompanyLogo);
+router.put('/:id', authenticateCompany, companyController.updateCompany);
+router.delete('/:id', authenticateCompany, companyController.deleteCompany);
 
 export default router;

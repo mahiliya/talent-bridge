@@ -30,6 +30,7 @@ model User {
   preferredJobTypes   JobType[]
   preferredLocations  String[]
   remotePreference    RemotePreference?
+  experienceLevel     ExperienceLevel?
   fullName            String
   phoneNumber         String?
   applications        Application[]
@@ -57,6 +58,7 @@ model Company {
   companyType       String?
   verificationToken String?
   jobs              Job[]
+  notifications     Notification[]
 }
 
 model Job {
@@ -115,14 +117,19 @@ model Match {
 
 model Notification {
   id        String           @id @default(uuid())
-  userId    String
+  // A notification belongs to EITHER a user (candidate) or a company. Exactly
+  // one of userId / companyId is set; both relations are optional so the same
+  // model serves candidate and company notification feeds.
+  userId    String?
+  companyId String?
   title     String
   message   String
   type      NotificationType
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
   link      String?
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 enum CompanySize {

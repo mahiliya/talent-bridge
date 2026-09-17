@@ -125,14 +125,24 @@ function LoginModal({ isOpen, onClose, redirectTo, defaultAccountType = "user" }
       localStorage.setItem("company", JSON.stringify(data.company))
     }
 
-    // Close the login modal
-    onClose()
-
-    // Return the visitor to the protected page they were trying to reach
-    // (e.g. a gated internship or category page). With no pending destination,
-    // fall back to the role-appropriate dashboard.
+    // Redirect to the intended destination (or the role-appropriate dashboard)
+    // using a SINGLE, full-page navigation.
+    //
+    // We deliberately do NOT also call onClose() here. Every entry point renders
+    // this same modal, but onClose differs: from the Header it only toggles React
+    // state, while from the /login page (Find My Internship, Become a Partner,
+    // Explore, and any ProtectedRoute redirect) onClose is `navigate('/')`.
+    // Running a client-side route change AND a window.location assignment in the
+    // same tick races two navigations against each other — the SPA re-renders
+    // through /login and its route guards and the visitor is bounced back to the
+    // form (the "page reloads / re-enter credentials" bug). One full-page
+    // navigation removes the race and is consistent with the app's existing
+    // architecture (auth is read from localStorage at render, so a full load also
+    // refreshes the Header and route guards). `replace` keeps /login out of the
+    // history stack, preventing a back-button redirect loop.
     const fallback = accountType === "company" ? "/company/dashboard" : "/dashboard"
-    window.location.href = redirectTo || fallback
+    window.location.replace(redirectTo || fallback)
+    return
 
   } catch (error) {
     console.error("Login error:", error)

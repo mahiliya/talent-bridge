@@ -85,6 +85,19 @@
 }
 .decision-status { display: flex; align-items: center; gap: 10px; }
 
+/* ---- Reason / message to applicant ---- */
+.reason-field { display: grid; gap: 8px; font: 600 13px Arial, sans-serif; margin-bottom: 18px; }
+.reason-field textarea {
+  border: 1px solid #cfc8ba;
+  background: #fffdf8;
+  padding: 12px;
+  font: 15px/1.5 Arial, sans-serif;
+  color: #17262b;
+  resize: vertical;
+  min-height: 96px;
+}
+.reason-field small { font-weight: normal; color: #657477; }
+
 /* ---- Decision bar ---- */
 .decision-bar { display: flex; flex-wrap: wrap; gap: 12px; }
 .decision-btn {

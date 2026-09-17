@@ -1,18 +1,18 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/userController';
-import { authenticateUser } from '../middleware/auth';
+import { authenticate, authenticateUser } from '../middleware/auth';
 
 const router = Router();
 const userController = new UserController();
 
-// Register a new user
+// Register a new user (public)
 router.post('/register', userController.register as any);
 
-// Get all students
-router.get('/students', userController.getAllStudents as any);
+// Get all students (authentication required; password-free projection)
+router.get('/students', authenticate, userController.getAllStudents as any);
 
-// Get all graduates
-router.get('/graduates', userController.getAllGraduates as any);
+// Get all graduates (authentication required; password-free projection)
+router.get('/graduates', authenticate, userController.getAllGraduates as any);
 
 // Get user by ID
 router.get('/:id', authenticateUser, userController.getUserById as any);

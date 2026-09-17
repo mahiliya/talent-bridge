@@ -8,3 +8,33 @@
 .status-interview{color:#b96e45;background:#f6e6da}
 .status-accepted{color:#2f6b3f;background:#dcecdf}
 .status-rejected{color:#9a3f32;background:#f8dfd5}
+
+/* Notifications feed (candidate + reused visual language on the company side). */
+.notification-list{border-top:1px solid #d7d1c4}
+.notification-item{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;padding:16px 12px;border-bottom:1px solid #d7d1c4;background:#fffdf8;cursor:pointer;text-align:left;width:100%}
+.notification-item.unread{background:#f3efe4;border-left:3px solid #d98a5d}
+.notification-item:hover{background:#f0ece0}
+.notification-body{flex:1;min-width:0}
+.notification-top{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.notification-top h4{font:600 16px Arial,sans-serif;margin:0;color:#17262b}
+.notification-date{font:11px Arial,sans-serif;color:#8a938f;white-space:nowrap}
+.notification-message{font:13px/1.6 Arial,sans-serif;color:#4c5b5e;margin:6px 0 0;white-space:pre-line}
+.notification-dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:#d98a5d;margin-top:6px}
+
+/* Candidate application history cards. */
+.application-list{display:grid;gap:14px}
+.application-card{padding:20px;background:#fffdf8;border:1px solid #ddd5c8}
+.application-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.application-head h3{font-size:19px;font-weight:normal;margin:0 0 5px}
+.application-head p{font:13px Arial,sans-serif;color:#657477;margin:0}
+.application-message{font:13px/1.6 Arial,sans-serif;color:#43524f;margin:14px 0 0;padding:12px 14px;background:#f4f1e9;border-left:3px solid #b9b2a2;white-space:pre-line}
+.application-message-accepted{background:#dcecdf;border-left-color:#2f6b3f}
+.application-message-rejected{background:#f8dfd5;border-left-color:#9a3f32}
+.application-message-shortlisted{background:#e7dcf2;border-left-color:#5a3e8a}
+.application-message-interview{background:#f6e6da;border-left-color:#b96e45}
+.application-note{font:13px/1.6 Arial,sans-serif;color:#43524f;margin:10px 0 0}
+.application-actions{display:flex;gap:18px;margin-top:14px}
+
+/* "Job Preferences" grouping inside the profile form (spans both columns). */
+.form-section-title{grid-column:1 / -1;font-size:22px;font-weight:normal;margin:14px 0 0;padding-top:16px;border-top:1px solid #d7d1c4}
+.form-section-note{grid-column:1 / -1;font:13px Arial,sans-serif;color:#657477;margin:0}

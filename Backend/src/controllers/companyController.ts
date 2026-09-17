@@ -18,6 +18,21 @@ export class CompanyController {
     this.companyService = new CompanyService();
   }
 
+  // Ownership guard: a company may only manage its OWN account. The identity
+  // comes from the authenticated token (set by authenticateCompany), never the
+  // request body.
+  private ensureOwnCompany(req: Request, res: Response): boolean {
+    if (!req.company || req.company.id !== String(req.params.id)) {
+      res.status(403).json({
+        success: false,
+        message: 'You can only manage your own company account.',
+        error: 'COMPANY_ACCESS_FORBIDDEN',
+      });
+      return false;
+    }
+    return true;
+  }
+
   // Register a new company (public). Reuses the shared password hashing and
   // validation; companies live in their own table so they are always
   // distinguishable from user accounts.
@@ -61,8 +76,8 @@ export class CompanyController {
   // Get company by ID
   getCompanyById = async (req: Request, res: Response) => {
     try {
-     const companyId = parseInt(String(req.params.id), 10);
-      const company = await CompanyService.getCompanyById(companyId.toString());
+     const companyId = String(req.params.id);
+      const company = await CompanyService.getCompanyById(companyId);
       res.json(company);
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
@@ -73,12 +88,13 @@ export class CompanyController {
     }
   };
 
-  // Update company profile
+  // Update company profile (owner only)
   updateCompany = async (req: Request, res: Response) => {
+    if (!this.ensureOwnCompany(req, res)) return;
     try {
-      const companyId = parseInt(String(req.params.id), 10);
+      const companyId = String(req.params.id);
       const companyData = req.body as UpdateCompanyDto;
-      const updatedCompany = await CompanyService.updateCompany(companyId.toString(), companyData);
+      const updatedCompany = await CompanyService.updateCompany(companyId, companyData);
       res.json(updatedCompany);
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
@@ -92,8 +108,8 @@ export class CompanyController {
   // Get company's jobs
   getCompanyJobs = async (req: Request, res: Response) => {
     try {
-      const companyId = parseInt(String(req.params.id), 10);
-      const jobs = await CompanyService.getCompanyJobs(companyId.toString());
+      const companyId = String(req.params.id);
+      const jobs = await CompanyService.getCompanyJobs(companyId);
       res.json(jobs);
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
@@ -130,8 +146,9 @@ export class CompanyController {
     }
   };
 
-  // Delete company
+  // Delete company (owner only)
   deleteCompany = async (req: Request, res: Response) => {
+    if (!this.ensureOwnCompany(req, res)) return;
     try {
       const { id } = req.params;
       const company = await this.companyService.deleteCompany(String(id));
@@ -173,8 +190,9 @@ export class CompanyController {
     }
   };
 
-  // Update company logo
+  // Update company logo (owner only)
   updateCompanyLogo = async (req: Request, res: Response) => {
+    if (!this.ensureOwnCompany(req, res)) return;
     try {
       const { id } = req.params;
       const { logoUrl } = req.body;
@@ -196,8 +214,9 @@ export class CompanyController {
     }
   };
 
-  // Get company's job applications
+  // Get company's job applications (owner only)
   getCompanyJobApplications = async (req: Request, res: Response) => {
+    if (!this.ensureOwnCompany(req, res)) return;
     try {
       const { id } = req.params;
      const applications = await this.companyService.getCompanyJobApplications(String(id));

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import "./ApplicationModal.css"
 import { X, Plus, Eye, Edit2, Trash2, Upload, Check } from "lucide-react"
+import { capitalizeFirst } from "../utils/capitalize"
 
 const API_URL = "http://localhost:3000/api"
 
@@ -52,7 +53,7 @@ function ApplicationModal({ internship, onClose, onApplied }) {
   }, [onClose])
 
   const handleCoverLetterChange = (e) => {
-    const text = e.target.value
+    const text = capitalizeFirst(e.target.value)
     if (text.length <= maxCharacters) {
       setCoverLetter(text)
     }

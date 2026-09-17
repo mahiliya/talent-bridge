@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './SignupModal.css';
 import LoginModal from "./LoginModal"
+import { capitalizeFirst } from "../utils/capitalize"
 
 const API_URL = 'http://localhost:3000/api';
 const REQUEST_TIMEOUT_MS = 15000;
@@ -230,10 +231,13 @@ function SignupModal({ isOpen, onClose, defaultAccountType = 'user', redirectTo 
     localStorage.setItem('accessToken', loginData.accessToken);
     localStorage.setItem('refreshToken', loginData.refreshToken);
     localStorage.setItem('company', JSON.stringify(loginData.company));
-    onClose();
+    // Single full-page navigation only — see LoginModal: calling onClose()
+    // (which is navigate('/') on the /signup page) alongside a window.location
+    // assignment races two navigations and can bounce the visitor back to the
+    // form. `replace` also keeps /signup out of the history stack.
     // A company that started from a protected page returns there; otherwise the
     // company dashboard.
-    window.location.href = redirectTo || '/company/dashboard';
+    window.location.replace(redirectTo || '/company/dashboard');
     return true;
   };
 
@@ -265,10 +269,12 @@ function SignupModal({ isOpen, onClose, defaultAccountType = 'user', redirectTo 
     localStorage.setItem('accessToken', loginData.accessToken);
     localStorage.setItem('refreshToken', loginData.refreshToken);
     localStorage.setItem('user', JSON.stringify(loginData.user));
-    onClose();
+    // Single full-page navigation only (see the company branch above): avoid the
+    // onClose()/navigate('/') + window.location race that bounces the visitor
+    // back to the form. `replace` keeps /signup out of the history stack.
     // Return to the intended protected page (e.g. /internships) after signing
     // up, falling back to the user dashboard.
-    window.location.href = redirectTo || '/dashboard';
+    window.location.replace(redirectTo || '/dashboard');
     return true;
   };
 
@@ -352,7 +358,7 @@ function SignupModal({ isOpen, onClose, defaultAccountType = 'user', redirectTo 
                 id="signup-name"
                 placeholder={isCompany ? 'Enter your company name' : 'Enter your full name'}
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(capitalizeFirst(e.target.value))}
               />
             </div>
             {nameError && <div className="signup-error-message">{nameError}</div>}
@@ -404,7 +410,7 @@ function SignupModal({ isOpen, onClose, defaultAccountType = 'user', redirectTo 
                     id="signup-industry"
                     placeholder="e.g. Software, Finance, Healthcare"
                     value={industry}
-                    onChange={(e) => setIndustry(e.target.value)}
+                    onChange={(e) => setIndustry(capitalizeFirst(e.target.value))}
                   />
                 </div>
                 {industryError && <div className="signup-error-message">{industryError}</div>}
@@ -443,7 +449,7 @@ function SignupModal({ isOpen, onClose, defaultAccountType = 'user', redirectTo 
                     id="signup-location"
                     placeholder="e.g. Addis Ababa"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={(e) => setLocation(capitalizeFirst(e.target.value))}
                   />
                 </div>
                 {locationError && <div className="signup-error-message">{locationError}</div>}

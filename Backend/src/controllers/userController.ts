@@ -157,6 +157,12 @@ export class UserController {
           message: error.message,
           error: 'USER_NOT_FOUND'
         });
+      } else if (error instanceof ValidationError) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+          error: 'INVALID_PROFILE_PREFERENCE'
+        });
       } else if (error instanceof DatabaseError) {
         res.status(500).json({
           success: false,
@@ -375,11 +381,12 @@ export class UserController {
 
   // Update user preferences
   updatePreferences = async (req: Request, res: Response) => {
+    if (!this.ensureOwnProfile(req, res)) return;
     try {
       console.log('Updating preferences for user:', req.params.id);
-     const userId = parseInt(String(req.params.id), 10);
+     const userId = String(req.params.id);
       const preferences = req.body;
-      const updatedUser = await this.userService.updateUserPreferences(userId.toString(), preferences);
+      const updatedUser = await this.userService.updateUserPreferences(userId, preferences);
       console.log('Preferences updated successfully');
       res.status(200).json({
         success: true,

@@ -98,7 +98,7 @@ function Footer() {
       </div>
       
       <div className="footer-bottom">
-        <p className="footer-copyright">© 2025 Talent Bridge. All rights reserved.</p>
+        <p className="footer-copyright">© 2026 Talent Bridge. All rights reserved.</p>
         
         <div className="footer-social-mobile">
           <a href="/" className="social-icon" aria-label="Facebook">

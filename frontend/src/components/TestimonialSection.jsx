@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { capitalizeFirst } from '../utils/capitalize';
 import './TestimonialSection.css';
 
 function TestimonialSection() {
@@ -13,7 +14,7 @@ function TestimonialSection() {
   // Function to handle input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setNewTestimonial(prev => ({ ...prev, [name]: value }));
+    setNewTestimonial(prev => ({ ...prev, [name]: capitalizeFirst(value) }));
   };
 
   // Function to handle testimonial submission

@@ -84,11 +84,14 @@ export class AuthService {
         type: userType
       });
 
-      // Return user/company data without password and tokens
-      const { password: _, ...entityWithoutPassword } = entity;
-      
+      // Return user/company data without any secrets. For a company this also
+      // strips the stored refreshToken and verificationToken (they must never be
+      // exposed to the client or persisted in browser storage); for a user those
+      // keys are simply absent.
+      const { password: _pw, refreshToken: _rt, verificationToken: _vt, ...entityWithoutSecrets } = entity as any;
+
       return {
-        [userType]: entityWithoutPassword,
+        [userType]: entityWithoutSecrets,
         accessToken,
         refreshToken
       };
@@ -150,6 +153,7 @@ export class AuthService {
           preferredIndustries: true,
           minSalary: true,
           remotePreference: true,
+          experienceLevel: true,
           updatedAt: true
         }
       });

@@ -4,6 +4,7 @@ import {
   DatabaseError 
 } from '../utils/errors';
 import { CreateMatchDto} from '../types/match.types';
+import { USER_SAFE_SELECT, COMPANY_SAFE_SELECT } from '../utils/safeSelect';
 
 const prisma = new PrismaClient();
 
@@ -30,6 +31,7 @@ export class MatchService {
       minSalary?: number | null;
       remotePreference?: string | null;
       isStudent?: boolean;
+      experienceLevel?: string | null;
     },
     job: {
       title: string;
@@ -38,6 +40,7 @@ export class MatchService {
       jobType: JobType;
       location: string;
       salary?: string | null;
+      experienceLevel?: string | null;
     }
   ) {
     const jobText = [job.title, job.description ?? '', ...(job.requirements ?? [])].join(' ');
@@ -83,6 +86,11 @@ export class MatchService {
     }
 
     if (user.remotePreference && user.remotePreference === 'REMOTE' && normalizeText(job.location).includes('remote')) {
+      score += 10;
+    }
+
+    // Experience/job level: reward jobs pitched at the candidate's chosen level.
+    if (user.experienceLevel && job.experienceLevel && user.experienceLevel === job.experienceLevel) {
       score += 10;
     }
 
@@ -341,10 +349,10 @@ export class MatchService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
-        user: true,
+        user: { select: USER_SAFE_SELECT },
       },
     });
   }
@@ -356,10 +364,10 @@ export class MatchService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
-        user: true,
+        user: { select: USER_SAFE_SELECT },
       },
     });
   }
@@ -372,10 +380,10 @@ export class MatchService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
-        user: true,
+        user: { select: USER_SAFE_SELECT },
       },
     });
   }
@@ -396,7 +404,7 @@ export class MatchService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
       },
@@ -413,7 +421,7 @@ export class MatchService {
         jobId,
       },
       include: {
-        user: true,
+        user: { select: USER_SAFE_SELECT },
       },
       orderBy: {
         score: 'desc',
@@ -431,7 +439,7 @@ export class MatchService {
       },
       include: {
         job: true,
-        user: true,
+        user: { select: USER_SAFE_SELECT },
       },
       orderBy: {
         score: 'desc',
@@ -448,7 +456,7 @@ export class MatchService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
       },
@@ -466,7 +474,7 @@ export class MatchService {
         jobId,
       },
       include: {
-        user: true,
+        user: { select: USER_SAFE_SELECT },
       },
       orderBy: {
         score: 'desc',
@@ -557,6 +565,7 @@ export class MatchService {
           minSalary: true,
           remotePreference: true,
           isStudent: true,
+          experienceLevel: true,
         }
       });
 
@@ -696,4 +705,14 @@ export class MatchService {
       throw new DatabaseError('An error occurred while retrieving candidate recommendations. Please try again later.');
     }
   }
-} 
+
+  // Return the owning company id for a job (or null). Used to authorize
+  // company-scoped match reads without exposing any other data.
+  static async getJobCompanyId(jobId: string): Promise<string | null> {
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { companyId: true },
+    });
+    return job?.companyId ?? null;
+  }
+}

@@ -3,12 +3,19 @@ import {
   ResourceNotFoundError,
   ForbiddenError,
   DuplicateResourceError,
+  ValidationError,
   DatabaseError
 } from '../utils/errors';
 import { CreateApplicationDto } from '../types/application.types';
 import { MatchService } from './matchService';
+import { NotificationService } from './notificationService';
+import { COMPANY_SAFE_SELECT, USER_SAFE_SELECT } from '../utils/safeSelect';
 
 const prisma = new PrismaClient();
+const notificationService = new NotificationService();
+
+// The longest company explanation/message we persist and echo to the applicant.
+const MAX_REASON_LENGTH = 1000;
 
 // Applicant fields a company may see on an application, plus the fields the
 // applicant scorer needs. Never includes the password.
@@ -93,6 +100,19 @@ export class ApplicationService {
         }
       });
 
+      // Notify the company that owns this job about the new applicant. Scoped to
+      // job.companyId so it can only ever reach the owning company. Best-effort:
+      // a notification failure must not fail the application submission.
+      try {
+        await notificationService.createNewApplicationNotification({
+          companyId: job.companyId,
+          applicantName: user.fullName,
+          jobTitle: application.job.title,
+        });
+      } catch (notifyError) {
+        console.error('Failed to create new-application company notification:', notifyError);
+      }
+
       return application;
     } catch (error) {
       if (error instanceof Error) {
@@ -135,6 +155,10 @@ export class ApplicationService {
               id: true,
               title: true,
               jobType: true,
+              location: true,
+              workMode: true,
+              isInternship: true,
+              deadline: true,
               company: {
                 select: {
                   id: true,
@@ -311,7 +335,12 @@ export class ApplicationService {
     }
   }
 
-  static async updateApplicationStatus(applicationId: string, companyId: string, status: ApplicationStatus) {
+  static async updateApplicationStatus(
+    applicationId: string,
+    companyId: string,
+    status: ApplicationStatus,
+    reason?: string
+  ) {
     try {
       // Check if application exists
       const application = await prisma.application.findUnique({
@@ -329,29 +358,72 @@ export class ApplicationService {
         throw new ResourceNotFoundError(`Application with ID ${applicationId} not found.`);
       }
 
-      // Check if the company owns the job
+      // Check if the company owns the job. This ownership guard is unchanged: a
+      // company can never modify an application belonging to another company.
       if (application.job.companyId !== companyId) {
         throw new ForbiddenError('You do not have permission to update this application.');
       }
 
-      // Update application status
+      // Normalize the company's explanation/message to the applicant. It is
+      // persisted on the application (reusing the existing `notes` field) and
+      // echoed to the candidate in their notification. When `reason` is not
+      // supplied at all we leave any existing note untouched.
+      let normalizedReason: string | undefined;
+      if (reason !== undefined) {
+        normalizedReason = String(reason).trim();
+        if (normalizedReason.length > MAX_REASON_LENGTH) {
+          throw new ValidationError(
+            `The message to the applicant must be ${MAX_REASON_LENGTH} characters or fewer.`
+          );
+        }
+      }
+
+      // Update application status (and the note when a reason was provided).
       const updatedApplication = await prisma.application.update({
         where: { id: applicationId },
-        data: { status },
+        data: {
+          status,
+          ...(normalizedReason !== undefined ? { notes: normalizedReason || null } : {}),
+        },
         include: {
           applicant: {
             select: {
+              id: true,
               fullName: true,
               email: true
             }
           },
           job: {
             select: {
-              title: true
+              id: true,
+              title: true,
+              company: { select: { name: true } }
             }
           }
         }
       });
+
+      // Notify the candidate about the decision. A notification failure must
+      // never fail the status update itself, so it is best-effort.
+      const NOTIFIABLE_STATUSES: ApplicationStatus[] = [
+        ApplicationStatus.SHORTLISTED,
+        ApplicationStatus.ACCEPTED,
+        ApplicationStatus.REJECTED,
+        ApplicationStatus.INTERVIEW,
+      ];
+      if (NOTIFIABLE_STATUSES.includes(status)) {
+        try {
+          await notificationService.createApplicationDecisionNotification({
+            userId: updatedApplication.applicant.id,
+            status,
+            jobTitle: updatedApplication.job.title,
+            companyName: updatedApplication.job.company.name,
+            reason: normalizedReason,
+          });
+        } catch (notifyError) {
+          console.error('Failed to create application status notification:', notifyError);
+        }
+      }
 
       return updatedApplication;
     } catch (error) {
@@ -408,10 +480,10 @@ export class ApplicationService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
-        applicant: true,
+        applicant: { select: USER_SAFE_SELECT },
       },
     });
   }
@@ -423,10 +495,10 @@ export class ApplicationService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
-        applicant: true,
+        applicant: { select: USER_SAFE_SELECT },
       },
     });
   }
@@ -439,10 +511,10 @@ export class ApplicationService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
-        applicant: true,
+        applicant: { select: USER_SAFE_SELECT },
       },
     });
   }
@@ -463,7 +535,7 @@ export class ApplicationService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
       },
@@ -477,13 +549,13 @@ export class ApplicationService {
         jobId,
       },
       include: {
-        applicant: true,
+        applicant: { select: USER_SAFE_SELECT },
       },
     });
   }
 
-  // Get all applications for a company
-  async getCompanyApplications(companyId: string): Promise<Application[]> {
+  // Get all applications for a company. Applicant projected without password.
+  async getCompanyApplications(companyId: string) {
     return prisma.application.findMany({
       where: {
         job: {
@@ -492,13 +564,13 @@ export class ApplicationService {
       },
       include: {
         job: true,
-        applicant: true,
+        applicant: { select: APPLICANT_DETAIL_SELECT },
       },
     });
   }
 
-  // Get applications by status
-  async getApplicationsByStatus(status: ApplicationStatus): Promise<Application[]> {
+  // Get applications by status. Applicant and company projected without secrets.
+  async getApplicationsByStatus(status: ApplicationStatus) {
     return prisma.application.findMany({
       where: {
         status,
@@ -506,10 +578,10 @@ export class ApplicationService {
       include: {
         job: {
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           },
         },
-        applicant: true,
+        applicant: { select: APPLICANT_DETAIL_SELECT },
       },
     });
   }

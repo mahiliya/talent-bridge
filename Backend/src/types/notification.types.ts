@@ -1,7 +1,10 @@
 import { NotificationType } from '@prisma/client';
 
 export interface CreateNotificationDto {
-  userId: string;
+  // A notification targets EITHER a user (candidate) or a company. Exactly one
+  // of userId / companyId is set.
+  userId?: string;
+  companyId?: string;
   title: string;
   message: string;
   type: NotificationType;

@@ -20,54 +20,97 @@ export class MatchController {
     return true;
   }
 
-  // Create a new match
+  private ensureOwnCompanyRequest(req: Request, res: Response): boolean {
+    if (!req.company || req.company.id !== String(req.params.companyId)) {
+      res.status(403).json({ error: 'You can only access your own company matches.' });
+      return false;
+    }
+    return true;
+  }
+
+  // Authorize access to a single match: allowed for the match's user, or the
+  // company that owns the match's job. Returns the match, or null after sending
+  // a 404/403 response.
+  private async authorizeMatch(req: Request, res: Response, matchId: string) {
+    const match: any = await this.matchService.getMatchById(matchId);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return null;
+    }
+    const ownsAsUser = Boolean(req.user) && match.userId === req.user!.id;
+    const ownsAsCompany = Boolean(req.company) && match.job?.companyId === req.company!.id;
+    if (!ownsAsUser && !ownsAsCompany) {
+      res.status(403).json({ error: 'You do not have access to this match.' });
+      return null;
+    }
+    return match;
+  }
+
+  // Authorize a company-scoped job match read: the job must belong to the
+  // authenticated company.
+  private async ensureOwnsJob(req: Request, res: Response, jobId: string): Promise<boolean> {
+    const ownerCompanyId = await MatchService.getJobCompanyId(jobId);
+    if (!ownerCompanyId) {
+      res.status(404).json({ error: 'Job not found' });
+      return false;
+    }
+    if (!req.company || req.company.id !== ownerCompanyId) {
+      res.status(403).json({ error: 'You can only access matches for your own jobs.' });
+      return false;
+    }
+    return true;
+  }
+
+  // Create a new match (a user may only create matches for their own account)
   createMatch = async (req: Request, res: Response) => {
+    if (!req.user || String(req.body?.userId) !== req.user.id) {
+      return res.status(403).json({ error: 'You can only create matches for your own account.' });
+    }
     try {
       const match = await this.matchService.createMatch(req.body);
-      res.status(201).json(match);
+      return res.status(201).json(match);
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        res.status(404).json({ error: error.message });
+        return res.status(404).json({ error: error.message });
       } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
+        return res.status(500).json({ error: 'An unexpected error occurred' });
       }
     }
   };
 
-  // Get match by ID
+  // Get match by ID (owner user or owning company only)
   getMatchById = async (req: Request, res: Response) => {
     try {
-     const match = await this.matchService.getMatchById(String(req.params.id));
-      if (!match) {
-        res.status(404).json({ error: 'Match not found' });
-      } else {
-        res.json(match);
-      }
+      const match = await this.authorizeMatch(req, res, String(req.params.id));
+      if (!match) return; // response already sent (404/403)
+      return res.json(match);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
-  // Update match score
+  // Update match score (owner user or owning company only)
   updateMatchScore = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const authorized = await this.authorizeMatch(req, res, String(req.params.id));
+      if (!authorized) return;
       const { score } = req.body;
-      const match = await this.matchService.updateMatchScore(String(id), score);
-      res.json(match);
+      const match = await this.matchService.updateMatchScore(String(req.params.id), score);
+      return res.json(match);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
-  // Delete match
+  // Delete match (owner user or owning company only)
   deleteMatch = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-      const match = await this.matchService.deleteMatch(String(id));
-      res.json(match);
+      const authorized = await this.authorizeMatch(req, res, String(req.params.id));
+      if (!authorized) return;
+      const match = await this.matchService.deleteMatch(String(req.params.id));
+      return res.json(match);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
@@ -82,25 +125,25 @@ export class MatchController {
     }
   };
 
-  // Get all matches for a job
+  // Get all matches for a job (owning company only)
   getJobMatches = async (req: Request, res: Response) => {
     try {
-      const { jobId } = req.params;
-      const matches = await this.matchService.getJobMatches(String(jobId));
-      res.json(matches);
+      if (!(await this.ensureOwnsJob(req, res, String(req.params.jobId)))) return;
+      const matches = await this.matchService.getJobMatches(String(req.params.jobId));
+      return res.json(matches);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
-  // Get all matches for a company
+  // Get all matches for a company (owner only)
   getCompanyMatches = async (req: Request, res: Response) => {
+    if (!this.ensureOwnCompanyRequest(req, res)) return;
     try {
-      const { companyId } = req.params;
-      const matches = await this.matchService.getCompanyMatches(String(companyId));
-      res.json(matches);
+      const matches = await this.matchService.getCompanyMatches(String(req.params.companyId));
+      return res.json(matches);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
@@ -117,29 +160,32 @@ export class MatchController {
     }
   };
 
-  // Get top matches for a job
+  // Get top matches for a job (owning company only)
   getTopMatchesForJob = async (req: Request, res: Response) => {
     try {
-      const { jobId } = req.params;
+      if (!(await this.ensureOwnsJob(req, res, String(req.params.jobId)))) return;
       const limit = parseInt(req.query.limit as string) || 10;
-     const matches = await this.matchService.getTopMatchesForJob(String(jobId), limit);
-      res.json(matches);
+      const matches = await this.matchService.getTopMatchesForJob(String(req.params.jobId), limit);
+      return res.json(matches);
     } catch (error) {
-      res.status(500).json({ error: 'An unexpected error occurred' });
+      return res.status(500).json({ error: 'An unexpected error occurred' });
     }
   };
 
-  // Calculate match score between user and job
+  // Calculate match score between user and job (a user may only compute for self)
   calculateMatchScore = async (req: Request, res: Response) => {
+    if (!req.user || req.user.id !== String(req.params.userId)) {
+      return res.status(403).json({ error: 'You can only calculate scores for your own account.' });
+    }
     try {
       const { userId, jobId } = req.params;
-    const score = await this.matchService.calculateMatchScore(String(userId), String(jobId));
-      res.json({ score });
+      const score = await this.matchService.calculateMatchScore(String(userId), String(jobId));
+      return res.json({ score });
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        res.status(404).json({ error: error.message });
+        return res.status(404).json({ error: error.message });
       } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
+        return res.status(500).json({ error: 'An unexpected error occurred' });
       }
     }
   };
@@ -165,24 +211,29 @@ export class MatchController {
     }
   };
 
-  // Get candidate recommendations for job
+  // Get candidate recommendations for job. The authenticated company's identity
+  // (not the URL param) is used, and must match the requested company — so
+  // Company A cannot read Company B's recommendations.
   getCandidateRecommendations = async (req: Request, res: Response) => {
+    const { jobId, companyId } = req.params;
+    if (!req.company || req.company.id !== String(companyId)) {
+      return res.status(403).json({ error: 'You can only access candidate recommendations for your own company.' });
+    }
     try {
-      const { jobId, companyId } = req.params;
       const limit = parseInt(req.query.limit as string) || 10;
       const recommendations = await MatchService.getCandidateRecommendationsForJob(
         String(jobId),
-        String(companyId),
+        req.company.id,
         limit
       );
-      res.json(recommendations);
+      return res.json(recommendations);
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {
-        res.status(404).json({ error: error.message });
+        return res.status(404).json({ error: error.message });
       } else if (error instanceof DatabaseError) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: error.message });
       } else {
-        res.status(500).json({ error: 'An unexpected error occurred' });
+        return res.status(500).json({ error: 'An unexpected error occurred' });
       }
     }
   };

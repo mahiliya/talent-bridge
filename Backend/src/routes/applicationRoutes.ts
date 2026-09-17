@@ -11,14 +11,14 @@ router.post('/jobs/:jobId/apply', authenticateUser, applicationController.applyF
 // Get ranked applicants for one of the company's own jobs (Company only)
 router.get('/jobs/:jobId', authenticateCompany, applicationController.getJobApplications);
 
-// Get company applications
-router.get('/companies/:companyId', applicationController.getCompanyApplications);
+// Get company applications (Company only; ownership enforced in controller)
+router.get('/companies/:companyId', authenticateCompany, applicationController.getCompanyApplications);
 
-// Get applications by status
-router.get('/status/:status', applicationController.getApplicationsByStatus);
+// Get applications by status (Company only; scoped to the caller's own jobs)
+router.get('/status/:status', authenticateCompany, applicationController.getApplicationsByStatus);
 
-// Get application statistics
-router.get('/statistics/:companyId', applicationController.getApplicationStatistics);
+// Get application statistics (Company only; ownership enforced in controller)
+router.get('/statistics/:companyId', authenticateCompany, applicationController.getApplicationStatistics);
 
 // Get applications by user type and entity ID
 router.get('/user/:entityId', authenticateUser, applicationController.getApplications);

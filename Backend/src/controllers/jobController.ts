@@ -253,7 +253,7 @@ export class JobController {
   // Get job recommendations for user
   getJobRecommendations = async (req: Request, res: Response) => {
     try {
-      const userId = parseInt(String(req.params.userId), 10);
+      const userId = String(req.params.userId);
       const limit = parseInt(req.query.limit as string) || 10;
       const recommendations = await JobService.getJobRecommendationsForUser(userId, limit);
       res.json(recommendations);
@@ -269,7 +269,7 @@ export class JobController {
   // Get candidate recommendations for job
   getCandidateRecommendations = async (req: Request, res: Response) => {
     try {
-     const jobId = parseInt(String(req.params.jobId), 10);
+     const jobId = String(req.params.jobId);
       const limit = parseInt(req.query.limit as string) || 10;
       const recommendations = await JobService.getCandidateRecommendationsForJob(jobId,  limit);
       res.json(recommendations);

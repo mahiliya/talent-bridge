@@ -1,43 +1,55 @@
 import { Router } from 'express';
 import { NotificationController } from '../controllers/notificationController';
+import { authenticate, authenticateCompany, authenticateUser } from '../middleware/auth';
 
 const router = Router();
 const notificationController = new NotificationController();
 
-// Create a new notification
-router.post('/', notificationController.createNotification);
+// Notification routes require authentication. Ownership (the notification /
+// :userId / :companyId must belong to the caller) is enforced in the controller.
 
-// Get notification by ID
-router.get('/:id', notificationController.getNotificationById);
+// ---- Company-scoped feed (Company only; ownership enforced in controller) ----
+// Declared before the generic "/:id" routes for clarity.
+router.get('/company/:companyId', authenticateCompany, notificationController.getCompanyNotifications);
+router.get('/company/:companyId/count', authenticateCompany, notificationController.getCompanyNotificationCount);
+router.put('/company/:companyId/read-all', authenticateCompany, notificationController.markAllCompanyAsRead);
 
-// Update notification
-router.put('/:id', notificationController.updateNotification);
+// Create a new notification (own account)
+router.post('/', authenticateUser, notificationController.createNotification);
 
-// Delete notification
-router.delete('/:id', notificationController.deleteNotification);
+// Single-notification actions: authenticated as EITHER a user or a company; the
+// controller authorizes the notification against whichever principal is present.
+// Get notification by ID (owner only)
+router.get('/:id', authenticate, notificationController.getNotificationById);
 
-// Get notifications by user
-router.get('/user/:userId', notificationController.getUserNotifications);
+// Update notification (owner only)
+router.put('/:id', authenticate, notificationController.updateNotification);
 
-// Get unread notifications
-router.get('/user/:userId/unread', notificationController.getUnreadNotifications);
+// Delete notification (owner only)
+router.delete('/:id', authenticate, notificationController.deleteNotification);
 
-// Mark notification as read
-router.put('/:id/read', notificationController.markAsRead);
+// Get notifications by user (owner only)
+router.get('/user/:userId', authenticateUser, notificationController.getUserNotifications);
 
-// Mark all notifications as read
-router.put('/user/:userId/read-all', notificationController.markAllAsRead);
+// Get unread notifications (owner only)
+router.get('/user/:userId/unread', authenticateUser, notificationController.getUnreadNotifications);
 
-// Get notifications by type
-router.get('/user/:userId/type', notificationController.getNotificationsByType);
+// Mark notification as read (owner only — user or company)
+router.put('/:id/read', authenticate, notificationController.markAsRead);
 
-// Get notification count
-router.get('/user/:userId/count', notificationController.getNotificationCount);
+// Mark all notifications as read (owner only)
+router.put('/user/:userId/read-all', authenticateUser, notificationController.markAllAsRead);
 
-// Create match notification
-router.post('/match', notificationController.createMatchNotification);
+// Get notifications by type (owner only)
+router.get('/user/:userId/type', authenticateUser, notificationController.getNotificationsByType);
 
-// Create application status notification
-router.post('/application-status', notificationController.createApplicationStatusNotification);
+// Get notification count (owner only)
+router.get('/user/:userId/count', authenticateUser, notificationController.getNotificationCount);
+
+// Create match notification (own account)
+router.post('/match', authenticateUser, notificationController.createMatchNotification);
+
+// Create application status notification (own account)
+router.post('/application-status', authenticateUser, notificationController.createApplicationStatusNotification);
 
 export default router;

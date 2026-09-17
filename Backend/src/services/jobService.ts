@@ -1,5 +1,6 @@
 import { PrismaClient, Job, JobType, ExperienceLevel, TargetAudience, RemotePreference } from '@prisma/client';
 import { CreateJobDto, UpdateJobDto, CompanyJobInput } from '../types/job.types';
+import { COMPANY_SAFE_SELECT, USER_SAFE_SELECT } from '../utils/safeSelect';
 import {
   ResourceNotFoundError,
   ForbiddenError,
@@ -26,7 +27,7 @@ export class JobService {
     return prisma.job.create({
       data,
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -36,10 +37,10 @@ export class JobService {
     return prisma.job.findUnique({
       where: { id },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
         applications: {
           include: {
-            applicant: true,
+            applicant: { select: USER_SAFE_SELECT },
           },
         },
       },
@@ -52,7 +53,7 @@ export class JobService {
       where: { id },
       data,
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -71,7 +72,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -84,7 +85,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -97,7 +98,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -112,7 +113,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -125,7 +126,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -138,7 +139,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -154,7 +155,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -169,7 +170,7 @@ export class JobService {
         isActive: true,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -190,7 +191,7 @@ export class JobService {
         isActive: !job.isActive,
       },
       include: {
-        company: true,
+        company: { select: COMPANY_SAFE_SELECT },
       },
     });
   }
@@ -291,7 +292,7 @@ export class JobService {
         where: { id: jobId },
         data: jobData,
         include: {
-          company: true,
+          company: { select: COMPANY_SAFE_SELECT },
         }
       });
 
@@ -329,7 +330,7 @@ export class JobService {
           where: { id: jobId },
           data: { isActive: false },
           include: {
-            company: true,
+            company: { select: COMPANY_SAFE_SELECT },
           }
         });
         return { 
@@ -353,11 +354,11 @@ export class JobService {
   }
 
   // Get job recommendations for user
-  static async getJobRecommendationsForUser(userId: number, limit: number = 10) {
+  static async getJobRecommendationsForUser(userId: string, limit: number = 10) {
     try {
       // Get user's skills and preferences
       const user = await prisma.user.findUnique({
-        where: { id: userId.toString() },
+        where: { id: userId },
         select: {
           skills: true,
           preferredJobTypes: true,
@@ -405,11 +406,11 @@ export class JobService {
   }
 
   // Get candidate recommendations for job
-  static async getCandidateRecommendationsForJob(jobId: number, limit: number = 10) {
+  static async getCandidateRecommendationsForJob(jobId: string, limit: number = 10) {
     try {
       // Get job details
       const job = await prisma.job.findUnique({
-        where: { id: jobId.toString() },
+        where: { id: jobId },
         select: {
           requirements: true,
           experienceLevel: true,

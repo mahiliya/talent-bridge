@@ -16,6 +16,7 @@ import {
   validateCompanyName
 } from '../utils/validation';
 import { CreateCompanyDto, RegisterCompanyDto } from '../types/company.types';
+import { COMPANY_SAFE_SELECT, USER_SAFE_SELECT } from '../utils/safeSelect';
 
 const prisma = new PrismaClient();
 
@@ -220,12 +221,13 @@ export class CompanyService {
   }
 
   // Create a new company
-  async createCompany(data: CreateCompanyDto): Promise<Company> {
+  async createCompany(data: CreateCompanyDto) {
     try {
       // Hash the password
       const hashedPassword = await bcrypt.hash(data.password, 10);
 
-      // Create company with hashed password
+      // Create company with hashed password. The response never includes the
+      // password hash or refresh/verification tokens.
       return prisma.company.create({
         data: {
           name: data.name,
@@ -239,6 +241,7 @@ export class CompanyService {
           foundedYear: data.foundedYear,
           description: data.description,
         },
+        select: COMPANY_SAFE_SELECT,
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -256,58 +259,55 @@ export class CompanyService {
   }
 
   // Get company by name
-  async getCompanyByName(name: string): Promise<Company | null> {
+  async getCompanyByName(name: string) {
     return prisma.company.findFirst({
       where: {
         name: {
           contains: name,
           mode: 'insensitive'
         }
-      }
+      },
+      select: COMPANY_SAFE_SELECT,
     });
   }
 
   // Delete company
-  async deleteCompany(id: string): Promise<Company> {
+  async deleteCompany(id: string) {
     return prisma.company.delete({
       where: { id },
+      select: COMPANY_SAFE_SELECT,
     });
   }
 
   // Get all companies
-  async getAllCompanies(): Promise<Company[]> {
+  async getAllCompanies() {
     return prisma.company.findMany({
-      include: {
-        jobs: true,
-      },
+      select: { ...COMPANY_SAFE_SELECT, jobs: true },
     });
   }
 
   // Get companies by size
-  async getCompaniesBySize(size: CompanySize): Promise<Company[]> {
+  async getCompaniesBySize(size: CompanySize) {
     return prisma.company.findMany({
       where: { size },
-      include: {
-        jobs: true,
-      },
+      select: { ...COMPANY_SAFE_SELECT, jobs: true },
     });
   }
 
   // Get companies by industry
-  async getCompaniesByIndustry(industry: string): Promise<Company[]> {
+  async getCompaniesByIndustry(industry: string) {
     return prisma.company.findMany({
       where: { industry },
-      include: {
-        jobs: true,
-      },
+      select: { ...COMPANY_SAFE_SELECT, jobs: true },
     });
   }
 
   // Update company logo
-  async updateCompanyLogo(id: string, logoUrl: string): Promise<Company> {
+  async updateCompanyLogo(id: string, logoUrl: string) {
     return prisma.company.update({
       where: { id },
       data: { logo: logoUrl },
+      select: COMPANY_SAFE_SELECT,
     });
   }
 
@@ -321,7 +321,8 @@ export class CompanyService {
     });
   }
 
-  // Get company's job applications
+  // Get company's job applications. The applicant relation is projected with a
+  // password-free select so no password hash is ever returned.
   async getCompanyJobApplications(id: string) {
     return prisma.application.findMany({
       where: {
@@ -331,7 +332,7 @@ export class CompanyService {
       },
       include: {
         job: true,
-        applicant: true,
+        applicant: { select: USER_SAFE_SELECT },
       },
     });
   }
