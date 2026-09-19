@@ -18,12 +18,29 @@ const humanize = (value) =>
 
 const scoreClass = (score) => (score >= 70 ? 'high' : score >= 40 ? 'mid' : 'low');
 
-// Treat a stored link as an external URL. If it lacks a scheme, assume https so
-// the browser opens it as an external site rather than a local route.
-const normalizeUrl = (url) => {
-  const trimmed = String(url || '').trim();
+// Turn a stored link into a SAFE, absolute, external URL. Users often store a
+// bare domain ("example.com") or even a leading-slash value ("/example.com").
+// We prepend https:// when no scheme is present and validate the result so we
+// never navigate to a broken/internal page (that was the cause of the portfolio
+// 404 — a scheme-less value was treated as a React-Router path). Returns '' when
+// the value cannot be a real external site so the caller can show a message
+// instead of linking to a dead URL. Only http(s) is allowed (no open redirect,
+// no javascript:/data: schemes).
+const toExternalUrl = (value) => {
+  const trimmed = String(value || '').trim();
   if (!trimmed) return '';
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const withScheme = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed.replace(/^\/+/, '')}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    // A real external host must contain a dot (rejects "/portfolio", "localhost", etc.).
+    if (!u.hostname || !u.hostname.includes('.')) return '';
+    return u.href;
+  } catch {
+    return '';
+  }
 };
 
 // UI action -> real ApplicationStatus enum value.
@@ -43,6 +60,10 @@ function ApplicationDetails() {
   // The explanation/message the company sends to the applicant with a decision.
   // Prefilled with any previously saved message so it can be reviewed/edited.
   const [reason, setReason] = useState('');
+  // Object URL for the fetched resume PDF, shown in an in-app viewer. Empty when
+  // the viewer is closed.
+  const [resumeUrl, setResumeUrl] = useState('');
+  const [resumeLoading, setResumeLoading] = useState(false);
 
   const MAX_REASON = 1000;
 
@@ -77,17 +98,25 @@ function ApplicationDetails() {
     load();
   }, [navigate, token, applicationId]);
 
-  // Open the applicant's resume through the authorized backend endpoint. We
-  // fetch it with the auth token (so the resume stays private), turn the PDF
-  // into an object URL, and open that URL via a real anchor navigation.
+  // Open the applicant's resume through the authorized backend endpoint.
   //
-  // We deliberately do NOT pre-open a blank window and assign win.location to a
-  // blob: URL — some browsers land the empty tab on the New Tab Page and then
-  // treat the blob string as a search query (opening a Google search page).
-  // A programmatic <a target="_blank"> click navigates directly to the blob and
-  // the browser's built-in PDF viewer renders it.
+  // Root cause of the "blob: URL becomes a Google search" bug: navigating a
+  // TOP-LEVEL browser tab to a `blob:` URL is fragile. On some Chrome setups
+  // (a third-party "new tab / search" extension, or a PDF/policy setting that
+  // stops Chrome rendering PDFs inline) the blob: string in the address bar is
+  // handed to the omnibox and treated as a *search query* instead of being
+  // loaded — that is the Google-search redirect. This happens with any approach
+  // that makes blob: the tab's top-level URL (`window.open(blobUrl)` or an
+  // `<a target="_blank" href="blob:…">` click).
+  //
+  // Fix: never make a blob: URL a top-level navigation. We fetch the PDF with
+  // the auth token (so it stays private) and render it INSIDE the app via an
+  // <object>/<iframe> whose src is the blob. A blob: subresource is immune to
+  // the omnibox/new-tab hijacking and does not depend on the browser's
+  // "open PDFs in a new tab" setting. A Download link is offered as a fallback.
   const viewResume = async () => {
     setError('');
+    setResumeLoading(true);
     try {
       const res = await fetch(`${API_URL}/applications/${applicationId}/resume`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -100,19 +129,31 @@ function ApplicationDetails() {
       // Ensure the object URL is typed as a PDF so it renders inline.
       const pdfBlob = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
       const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      // Release the object URL once the new tab has had time to load it.
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      // Replace any previous viewer URL, revoking it so we don't leak object URLs.
+      setResumeUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
     } catch (err) {
       setError(err.message || 'Unable to open the resume.');
+    } finally {
+      setResumeLoading(false);
     }
   };
+
+  // Close the in-app resume viewer and release its object URL.
+  const closeResume = () => {
+    setResumeUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return '';
+    });
+  };
+
+  // Safety net: release the current object URL if the page unmounts while the
+  // viewer is open (double-revoke of an already-released URL is a harmless no-op).
+  useEffect(() => () => {
+    if (resumeUrl) URL.revokeObjectURL(resumeUrl);
+  }, [resumeUrl]);
 
   const updateStatus = async (status) => {
     setNotice('');
@@ -165,8 +206,12 @@ function ApplicationDetails() {
   const extraLinks = [
     { label: 'GitHub', url: a.githubProfile },
     { label: 'LinkedIn', url: a.linkedInProfile },
-  ].filter((p) => p.url);
-  const portfolioUrl = a.portfolioWebsite;
+  ]
+    .map((p) => ({ label: p.label, href: toExternalUrl(p.url) }))
+    .filter((p) => p.href);
+  // Raw stored value + the safe external URL derived from it (empty if invalid).
+  const portfolioRaw = a.portfolioWebsite;
+  const portfolioHref = toExternalUrl(portfolioRaw);
   // A resume exists if either the application or the applicant profile has one.
   const hasResume = Boolean(application.resumeUrl || a.resume);
   const preferredLocations = a.preferredLocations?.length ? a.preferredLocations.join(', ') : '';
@@ -236,17 +281,17 @@ function ApplicationDetails() {
             <p className="eyebrow" style={{ marginTop: '18px' }}>Resume</p>
             <div className="doc-links">
               {hasResume
-                ? <button type="button" className="doc-link" onClick={viewResume}>View Resume</button>
+                ? <button type="button" className="doc-link" onClick={viewResume} disabled={resumeLoading}>{resumeLoading ? 'Loading…' : 'View Resume'}</button>
                 : <span className="empty-state">No resume uploaded.</span>}
             </div>
 
             <p className="eyebrow" style={{ marginTop: '18px' }}>Portfolio</p>
             <div className="doc-links">
-              {portfolioUrl
-                ? <a className="doc-link" href={normalizeUrl(portfolioUrl)} target="_blank" rel="noopener noreferrer">View Portfolio</a>
-                : <span className="empty-state">No portfolio provided</span>}
+              {portfolioHref
+                ? <a className="doc-link" href={portfolioHref} target="_blank" rel="noopener noreferrer">View Portfolio</a>
+                : <span className="empty-state">{portfolioRaw ? 'Portfolio link is not a valid URL.' : 'No portfolio provided'}</span>}
               {extraLinks.map((p) => (
-                <a className="doc-link" key={p.label} href={normalizeUrl(p.url)} target="_blank" rel="noopener noreferrer">{p.label}</a>
+                <a className="doc-link" key={p.label} href={p.href} target="_blank" rel="noopener noreferrer">{p.label}</a>
               ))}
             </div>
           </article>
@@ -343,6 +388,39 @@ function ApplicationDetails() {
           </article>
         </section>
       </section>
+
+      {/* In-app resume viewer. The PDF is embedded as a subresource (blob: as an
+          <object>/<iframe> src), never a top-level navigation, so it renders
+          regardless of the browser's new-tab/PDF settings. */}
+      {resumeUrl && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Resume"
+          onClick={closeResume}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: '10px', width: 'min(960px, 100%)',
+              height: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '10px 14px', borderBottom: '1px solid #e5e7eb' }}>
+              <strong style={{ marginRight: 'auto' }}>Resume — {a.fullName || 'Applicant'}</strong>
+              <a className="text-link" href={resumeUrl} download="resume.pdf">Download</a>
+              <button type="button" className="text-link" onClick={closeResume} aria-label="Close resume viewer">Close ✕</button>
+            </div>
+            <object data={resumeUrl} type="application/pdf" style={{ flex: 1, width: '100%', border: 0 }}>
+              <iframe title="Resume" src={resumeUrl} style={{ flex: 1, width: '100%', height: '100%', border: 0 }} />
+            </object>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
