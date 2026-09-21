@@ -1,6 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import * as pdfjsLib from 'pdfjs-dist';
+// Vite resolves this to a bundled URL for the PDF.js web worker. Rendering the
+// PDF ourselves (to <canvas>) means the preview no longer depends on the
+// browser's built-in PDF plugin being enabled — which is why the <object>/<iframe>
+// embed showed up blank for some browsers even though the download worked.
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import CompanySidebar from '../components/CompanySidebar';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 import { capitalizeFirst } from '../utils/capitalize';
 import './UserDashboard.css';
 import './CompanyDashboard.css';
@@ -61,9 +69,13 @@ function ApplicationDetails() {
   // Prefilled with any previously saved message so it can be reviewed/edited.
   const [reason, setReason] = useState('');
   // Object URL for the fetched resume PDF, shown in an in-app viewer. Empty when
-  // the viewer is closed.
+  // the viewer is closed. Used both as the PDF.js source and the Download link.
   const [resumeUrl, setResumeUrl] = useState('');
   const [resumeLoading, setResumeLoading] = useState(false);
+  // Error surfaced inside the viewer if the PDF cannot be rendered.
+  const [resumeError, setResumeError] = useState('');
+  // Container the PDF.js canvases are appended into (one <canvas> per page).
+  const viewerRef = useRef(null);
 
   const MAX_REASON = 1000;
 
@@ -100,22 +112,16 @@ function ApplicationDetails() {
 
   // Open the applicant's resume through the authorized backend endpoint.
   //
-  // Root cause of the "blob: URL becomes a Google search" bug: navigating a
-  // TOP-LEVEL browser tab to a `blob:` URL is fragile. On some Chrome setups
-  // (a third-party "new tab / search" extension, or a PDF/policy setting that
-  // stops Chrome rendering PDFs inline) the blob: string in the address bar is
-  // handed to the omnibox and treated as a *search query* instead of being
-  // loaded — that is the Google-search redirect. This happens with any approach
-  // that makes blob: the tab's top-level URL (`window.open(blobUrl)` or an
-  // `<a target="_blank" href="blob:…">` click).
-  //
-  // Fix: never make a blob: URL a top-level navigation. We fetch the PDF with
-  // the auth token (so it stays private) and render it INSIDE the app via an
-  // <object>/<iframe> whose src is the blob. A blob: subresource is immune to
-  // the omnibox/new-tab hijacking and does not depend on the browser's
-  // "open PDFs in a new tab" setting. A Download link is offered as a fallback.
+  // We fetch the PDF with the auth token (so it stays private), keep a blob:
+  // object URL for the Download link, and render the pages ourselves with
+  // PDF.js (see the effect below). Rendering to <canvas> means the preview does
+  // NOT rely on the browser's built-in PDF plugin — earlier the <object>/<iframe>
+  // embed came up blank on browsers where inline PDF viewing is disabled, even
+  // though the same blob downloaded fine. It also avoids the older "blob: URL
+  // becomes a Google search" bug, since the blob is never a top-level navigation.
   const viewResume = async () => {
     setError('');
+    setResumeError('');
     setResumeLoading(true);
     try {
       const res = await fetch(`${API_URL}/applications/${applicationId}/resume`, {
@@ -126,7 +132,7 @@ function ApplicationDetails() {
         throw new Error(body.error || 'Unable to open the resume.');
       }
       const blob = await res.blob();
-      // Ensure the object URL is typed as a PDF so it renders inline.
+      // Ensure the object URL is typed as a PDF so the Download saves it correctly.
       const pdfBlob = blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
       const url = URL.createObjectURL(pdfBlob);
       // Replace any previous viewer URL, revoking it so we don't leak object URLs.
@@ -141,8 +147,60 @@ function ApplicationDetails() {
     }
   };
 
+  // Render the fetched PDF into the viewer, one <canvas> per page, whenever the
+  // viewer opens (resumeUrl set). PDF.js draws the pages, so no browser PDF
+  // plugin is needed. Cancels cleanly if the modal is closed mid-render.
+  useEffect(() => {
+    const container = viewerRef.current;
+    if (!resumeUrl || !container) return;
+
+    let cancelled = false;
+    let pdf;
+    setResumeError('');
+    container.replaceChildren();
+
+    const render = async () => {
+      try {
+        pdf = await pdfjsLib.getDocument(resumeUrl).promise;
+        if (cancelled) return;
+        // Fit each page to the container width, sharpened for high-DPI screens.
+        const dpr = window.devicePixelRatio || 1;
+        const targetWidth = container.clientWidth || 900;
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+          const page = await pdf.getPage(pageNum);
+          if (cancelled) return;
+          const baseViewport = page.getViewport({ scale: 1 });
+          const scale = targetWidth / baseViewport.width;
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.floor(viewport.width * dpr);
+          canvas.height = Math.floor(viewport.height * dpr);
+          canvas.style.width = '100%';
+          canvas.style.height = 'auto';
+          canvas.style.display = 'block';
+          canvas.style.margin = '0 auto 12px';
+          canvas.style.boxShadow = '0 1px 6px rgba(0,0,0,0.35)';
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined }).promise;
+          if (cancelled) return;
+          container.appendChild(canvas);
+        }
+      } catch (err) {
+        if (!cancelled) setResumeError('The resume could not be displayed. You can still download it.');
+      }
+    };
+
+    render();
+
+    return () => {
+      cancelled = true;
+      if (pdf) pdf.destroy();
+    };
+  }, [resumeUrl]);
+
   // Close the in-app resume viewer and release its object URL.
   const closeResume = () => {
+    setResumeError('');
     setResumeUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return '';
@@ -389,9 +447,9 @@ function ApplicationDetails() {
         </section>
       </section>
 
-      {/* In-app resume viewer. The PDF is embedded as a subresource (blob: as an
-          <object>/<iframe> src), never a top-level navigation, so it renders
-          regardless of the browser's new-tab/PDF settings. */}
+      {/* In-app resume viewer. Pages are drawn by PDF.js into <canvas> elements
+          inside `viewerRef`, so the preview does not depend on the browser's
+          built-in PDF plugin. A Download link is offered as a fallback. */}
       {resumeUrl && (
         <div
           role="dialog"
@@ -415,9 +473,15 @@ function ApplicationDetails() {
               <a className="text-link" href={resumeUrl} download="resume.pdf">Download</a>
               <button type="button" className="text-link" onClick={closeResume} aria-label="Close resume viewer">Close ✕</button>
             </div>
-            <object data={resumeUrl} type="application/pdf" style={{ flex: 1, width: '100%', border: 0 }}>
-              <iframe title="Resume" src={resumeUrl} style={{ flex: 1, width: '100%', height: '100%', border: 0 }} />
-            </object>
+            <div
+              ref={viewerRef}
+              style={{ flex: 1, width: '100%', overflow: 'auto', background: '#525659', padding: '16px' }}
+            />
+            {resumeError && (
+              <p style={{ margin: 0, padding: '10px 14px', color: '#b91c1c', background: '#fef2f2', borderTop: '1px solid #e5e7eb' }}>
+                {resumeError}
+              </p>
+            )}
           </div>
         </div>
       )}
