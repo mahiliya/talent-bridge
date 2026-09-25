@@ -68,7 +68,7 @@ To explore the current proof-of-concept, you can run the project locally.
 
 2.  **Set Up and Run the Backend Server:**
     ```sh
-    cd server
+    cd backend
     npm install
     # Create a .env file with your MySQL database credentials (see .env.example for template)
     npm start
@@ -77,7 +77,7 @@ To explore the current proof-of-concept, you can run the project locally.
 3.  **Set Up and Run the Frontend Client:**
     ```sh
     # In a new terminal window
-    cd ../client
+    cd ../frontend
     npm install
     npm start
     ```
